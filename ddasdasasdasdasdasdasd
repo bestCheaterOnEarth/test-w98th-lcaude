@@ -1,8 +1,8 @@
--- DISTORT UI library. Suba este arquivo no GitHub e use a URL raw no main.lua.
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local TextService = game:GetService("TextService")
 
 local localPlayer = Players.LocalPlayer
 local library = {flags = {}, setters = {}, listeners = {}, controls = {}, key = Enum.KeyCode.RightShift}
@@ -10,8 +10,6 @@ local Options = setmetatable({}, {__index = function(_, flag) return library.con
 library.Options = Options
 library.Toggles = Options
 
--- Fontes. Para nao depender de repos de terceiros, suba os .ttf no seu GitHub e troque as URLs.
--- LOGO_FONT_URL: .ttf do logo (desconhecido, nao identificado pelos prints). nil = Gotham Heavy italico.
 local FONT_UI_URL = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/windows-xp-tahoma.ttf"
 local FONT_BOLD_URL = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/TAHOMA-8PT-BOLD-WINDOWS-XP.TTF"
 local LOGO_FONT_URL = nil
@@ -83,6 +81,18 @@ function library.listen(flag, fn)
 	table.insert(library.listeners[flag], fn)
 end
 
+local function measure(str, font, size)
+	local ok, width = pcall(function()
+		local params = Instance.new("GetTextBoundsParams")
+		params.Text = str
+		params.Font = font
+		params.Size = size
+		params.Width = 10000
+		return TextService:GetTextBoundsAsync(params).X
+	end)
+	return ok and width or #str * 7
+end
+
 local function frame(parent, color, size, pos)
 	local f = Instance.new("Frame", parent)
 	f.BorderSizePixel = 0
@@ -142,6 +152,15 @@ local function text(parent, str, size, pos, align, font)
 	l.Size = size
 	l.Position = pos or UDim2.new()
 	return l
+end
+
+local function textStroke(label)
+	local s = Instance.new("UIStroke")
+	s.Color = black
+	s.Thickness = 1
+	s.LineJoinMode = Enum.LineJoinMode.Miter
+	s.Parent = label
+	return s
 end
 
 local function hitbox(parent, size, pos)
@@ -237,6 +256,99 @@ function library.loadConfig(json)
 		if library.setters[flag] then
 			library.setters[flag](value)
 		end
+	end
+end
+
+local hudGui, hudArea, watermark, watermarkLabel
+
+local function hud()
+	if hudGui and hudGui.Parent then
+		return hudGui
+	end
+	local parent = (gethui and gethui()) or localPlayer:WaitForChild("PlayerGui")
+	local old = parent:FindFirstChild("DistortHud")
+	if old then
+		old:Destroy()
+	end
+
+	hudGui = Instance.new("ScreenGui", parent)
+	hudGui.Name = "DistortHud"
+	hudGui.ResetOnSpawn = false
+	hudGui.IgnoreGuiInset = true
+	hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	hudArea = Instance.new("Frame", hudGui)
+	hudArea.Name = "Notifications"
+	hudArea.BackgroundTransparency = 1
+	hudArea.BorderSizePixel = 0
+	hudArea.Position = UDim2.fromOffset(8, 8)
+	hudArea.Size = UDim2.fromOffset(400, 300)
+	local areaList = Instance.new("UIListLayout", hudArea)
+	areaList.Padding = UDim.new(0, 6)
+	areaList.SortOrder = Enum.SortOrder.LayoutOrder
+
+	watermark = box(hudGui, theme.window, UDim2.fromOffset(100, 22), UDim2.new(0.5, 0, 0, 8), theme.border)
+	watermark.Name = "Watermark"
+	watermark.AnchorPoint = Vector2.new(0.5, 0)
+	watermark.Visible = false
+	watermark.ZIndex = 5
+	shade(watermark, Color3.fromRGB(190, 190, 195))
+	local wmLine = frame(watermark, theme.accent, UDim2.new(1, 0, 0, 2), UDim2.new())
+	wmLine.ZIndex = 6
+	watermarkLabel = text(watermark, "", UDim2.new(1, 0, 1, -2), UDim2.new(0, 0, 0, 2), Enum.TextXAlignment.Center, boldFont)
+	watermarkLabel.ZIndex = 6
+	textStroke(watermarkLabel)
+
+	return hudGui
+end
+
+function library:SetWatermark(str)
+	hud()
+	watermarkLabel.Text = str
+	watermark.Size = UDim2.fromOffset(measure(str, boldFont, 12) + 18, 22)
+	watermark.Visible = true
+end
+
+function library:SetWatermarkVisibility(on)
+	hud()
+	watermark.Visible = on and true or false
+end
+
+function library:Notify(str, duration)
+	hud()
+	local width = measure(str, uiFont, 12) + 16
+	local height = 22
+
+	local note = box(hudArea, theme.window, UDim2.fromOffset(0, height), nil, theme.border)
+	note.ClipsDescendants = true
+	note.ZIndex = 10
+	shade(note, Color3.fromRGB(190, 190, 195))
+
+	local bar = frame(note, theme.accent, UDim2.new(0, 3, 1, 0), UDim2.new())
+	bar.ZIndex = 12
+
+	local label = text(note, str, UDim2.new(1, -10, 1, 0), UDim2.new(0, 9, 0, 0))
+	label.ZIndex = 11
+	label.TextWrapped = false
+	textStroke(label)
+
+	TweenService:Create(note, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(width, height)}):Play()
+
+	task.spawn(function()
+		task.wait(duration or 5)
+		local out = TweenService:Create(note, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(0, height)})
+		out:Play()
+		out.Completed:Wait()
+		note:Destroy()
+	end)
+end
+
+function library:Unload()
+	if library.gui then
+		library.gui:Destroy()
+	end
+	if hudGui then
+		hudGui:Destroy()
 	end
 end
 
@@ -474,15 +586,12 @@ function Column:Toggle(opts)
 		return obj.Value
 	end
 
-	-- Amostra de cor no canto direito. Chame varias vezes para varias amostras (a primeira fica mais a direita).
 	function obj:AddColor(copts)
 		copts = copts or {}
 		copts.flag = copts.flag or (flag .. "_color" .. tostring(obj.right))
 		return buildPicker(row, copts, reserve(22))
 	end
 
-	-- Keybind no canto direito. value = nome de KeyCode ("X"), "MouseButton1/2/3" ou texto livre ("m4").
-	-- Por padrao so expoe bind:IsHeld(). Passe toggle = true para o bind ligar/desligar o toggle.
 	function obj:AddKeybind(kopts)
 		kopts = kopts or {}
 		local kflag = kopts.flag or (flag .. "_bind")
@@ -659,7 +768,6 @@ function Column:Slider(opts)
 	return obj
 end
 
--- text e opcional: sem titulo o campo fica colado no topo (como o "icon" do print).
 function Column:Dropdown(opts)
 	local flag = opts.flag or opts.text
 	local titled = opts.text ~= nil
@@ -772,7 +880,6 @@ function Column:Dropdown(opts)
 	return obj
 end
 
--- Linha com titulo e uma amostra de cor na direita (ex.: "weapons").
 function Column:Colorpicker(opts)
 	local row = Instance.new("Frame", self.holder)
 	row.BackgroundTransparency = 1
@@ -781,6 +888,55 @@ function Column:Colorpicker(opts)
 
 	text(row, opts.text, UDim2.new(1, -30, 1, 0), UDim2.new(0, 1, 0, 0), nil, boldFont)
 	return buildPicker(row, opts, 1)
+end
+
+function Column:Preview(opts)
+	local holder = Instance.new("Frame", self.holder)
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.Size = UDim2.new(1, 0, 0, opts.height or 130)
+
+	text(holder, opts.text or "preview", UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
+	local view = box(holder, Color3.fromRGB(12, 12, 14), UDim2.new(1, -2, 1, -22), UDim2.new(0, 1, 0, 20), theme.border)
+	view.ClipsDescendants = true
+
+	local img = Instance.new("ImageLabel", view)
+	img.BackgroundTransparency = 1
+	img.BorderSizePixel = 0
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.new(0.5, 0, 0.5, 0)
+	img.Size = UDim2.new(0.85, 0, 0.85, 0)
+	img.ScaleType = Enum.ScaleType.Fit
+
+	local empty = text(view, "no preview", UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center)
+	empty.TextColor3 = theme.dim
+	empty.Visible = false
+
+	local last
+	local function update()
+		local item = library.flags[opts.image]
+		if not item then return end
+		local skin = opts.skin and library.flags[opts.skin] or nil
+		local source = opts.resolve(item, skin)
+		if source == last then return end
+		last = source
+		empty.Visible = source == nil
+		if not source then
+			img.Image = ""
+			return
+		end
+		img.ImageTransparency = 1
+		img.Image = source
+		tween(img, "ImageTransparency", 0, 0.25)
+	end
+
+	library.listen(opts.image, update)
+	if opts.skin then
+		library.listen(opts.skin, update)
+	end
+	update()
+
+	return holder
 end
 
 function library:Window(title)
@@ -793,6 +949,7 @@ function library:Window(title)
 	gui.Name = "Distort"
 	gui.ResetOnSpawn = false
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	library.gui = gui
 
 	local main = box(gui, theme.window, UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), theme.inline)
 	main.Name = "Main"
@@ -806,7 +963,6 @@ function library:Window(title)
 		ColorSequenceKeypoint.new(1, theme.headline)
 	})
 
-	-- Logo: duas camadas de glitch deslocadas + camada principal com gradiente + scanlines.
 	local bar = frame(main, theme.window, UDim2.new(1, 0, 0, 42), UDim2.new(0, 0, 0, 4))
 	bar.BackgroundTransparency = 1
 	local logoText = string.upper(title or "distort")
