@@ -24,11 +24,11 @@ local theme = {
 	dim = Color3.fromRGB(125, 125, 132),
 	sep = Color3.fromRGB(62, 62, 68),
 	accent = Color3.fromRGB(127, 110, 212),
-	inline = Color3.fromRGB(90, 79, 142)
+	inline = Color3.fromRGB(75, 75, 75)
 }
 theme.headline = theme.accent:Lerp(black, 0.45)
 theme.accentEdge = theme.accent:Lerp(black, 0.3)
-theme.selected = theme.accent:Lerp(black, 0.72)
+theme.selected = theme.accent:Lerp(theme.window, 0.85)
 
 local HEADER = 26
 local fallback = Font.new("rbxasset://fonts/families/GothamSSm.json")
@@ -776,22 +776,6 @@ function Column:Dropdown(opts)
 	if titled then
 		text(holder, opts.text, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
 	end
-	local field = box(holder, theme.field, UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, titled and 19 or 1), theme.border)
-	shade(field, Color3.fromRGB(200, 200, 205))
-	local valueText = text(field, "", UDim2.new(1, -26, 1, 0), UDim2.new(0, 8, 0, 0))
-	valueText.TextTruncate = Enum.TextTruncate.AtEnd
-	local arrow = text(field, "v", UDim2.new(0, 14, 1, 0), UDim2.new(1, -18, 0, 0), Enum.TextXAlignment.Center, boldFont)
-	arrow.TextColor3 = theme.dim
-	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
-
-	hit.MouseEnter:Connect(function()
-		tween(valueText, "TextColor3", white)
-		tween(arrow, "TextColor3", theme.accent)
-	end)
-	hit.MouseLeave:Connect(function()
-		tween(valueText, "TextColor3", theme.text)
-		tween(arrow, "TextColor3", theme.dim)
-	end)
 
 	local pop = box(library.main, theme.window, UDim2.new(), nil, theme.inline)
 	pop.Visible = false
@@ -801,16 +785,52 @@ function Column:Dropdown(opts)
 	list.BorderSizePixel = 0
 	list.Active = true
 	list.Size = UDim2.new(1, 0, 1, 0)
-	list.ScrollBarThickness = 2
+	list.ScrollBarThickness = 3
 	list.ScrollBarImageColor3 = theme.accent
 	list.CanvasSize = UDim2.new()
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	Instance.new("UIListLayout", list).SortOrder = Enum.SortOrder.LayoutOrder
 	local listPad = Instance.new("UIPadding", list)
-	listPad.PaddingTop = UDim.new(0, 1)
-	listPad.PaddingBottom = UDim.new(0, 1)
-	listPad.PaddingLeft = UDim.new(0, 1)
-	listPad.PaddingRight = UDim.new(0, 1)
+	listPad.PaddingTop = UDim.new(0, 2)
+	listPad.PaddingBottom = UDim.new(0, 2)
+	listPad.PaddingLeft = UDim.new(0, 2)
+	listPad.PaddingRight = UDim.new(0, 2)
+
+	local field = box(holder, theme.field, UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, titled and 19 or 1), theme.border)
+	shade(field, Color3.fromRGB(200, 200, 205))
+	local fieldEdge = field.InLine
+	local valueText = text(field, "", UDim2.new(1, -28, 1, 0), UDim2.new(0, 8, 0, 0))
+	valueText.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local arrow = frame(field, white, UDim2.fromOffset(7, 4), UDim2.new(1, -15, 0.5, -2))
+	arrow.BackgroundTransparency = 1
+	local pixels = {}
+	for i = 1, 4 do
+		pixels[i] = frame(arrow, theme.dim, UDim2.fromOffset(9 - i * 2, 1), UDim2.fromOffset(i - 1, i - 1))
+	end
+
+	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
+	hit.MouseEnter:Connect(function()
+		tween(valueText, "TextColor3", white)
+		if not pop.Visible then
+			tween(fieldEdge, "Color", theme.inline)
+		end
+	end)
+	hit.MouseLeave:Connect(function()
+		tween(valueText, "TextColor3", theme.text)
+		if not pop.Visible then
+			tween(fieldEdge, "Color", theme.border)
+		end
+	end)
+
+	pop:GetPropertyChangedSignal("Visible"):Connect(function()
+		local open = pop.Visible
+		for i, pixel in ipairs(pixels) do
+			pixel.Position = UDim2.fromOffset(i - 1, open and 4 - i or i - 1)
+			tween(pixel, "BackgroundColor3", open and theme.accent or theme.dim)
+		end
+		tween(fieldEdge, "Color", open and theme.accentEdge or theme.border)
+	end)
 
 	local rows, order, count = {}, {}, 0
 	local obj = {Value = multi and order or nil}
@@ -825,10 +845,15 @@ function Column:Dropdown(opts)
 	local function paint(name)
 		local row = rows[name]
 		local index = position(name)
-		row.item.BackgroundTransparency = index and 0 or 1
-		row.bar.Visible = index ~= nil
+		local picked = index ~= nil
+		tween(row.item, "BackgroundColor3", picked and not multi and theme.selected or (row.hover and theme.field or theme.window), 0.1)
+		row.bar.Visible = picked and not multi
 		row.index.Text = multi and index and tostring(index) or ""
-		tween(row.label, "TextColor3", index and white or theme.text)
+		tween(row.label, "TextColor3", picked and (multi and white or theme.accent) or (row.hover and white or theme.text))
+		if multi then
+			tween(row.check, "BackgroundColor3", picked and theme.accent or theme.control)
+			tween(row.check.InLine, "Color", picked and theme.accentEdge or theme.controlEdge)
+		end
 	end
 
 	local function commit(silent)
@@ -851,21 +876,26 @@ function Column:Dropdown(opts)
 		rows, count = {}, #values
 		for _, name in ipairs(values) do
 			local item = hitbox(list, UDim2.new(1, 0, 0, 20))
-			item.BackgroundColor3 = theme.selected
-			local bar = frame(item, theme.accent, UDim2.new(0, 2, 1, 0))
-			local label = text(item, name, UDim2.new(1, -30, 1, 0), UDim2.new(0, 9, 0, 0))
-			local index = text(item, "", UDim2.new(0, 18, 1, 0), UDim2.new(1, -22, 0, 0), Enum.TextXAlignment.Right, boldFont)
-			index.TextColor3 = theme.accent
-			rows[name] = {item = item, bar = bar, label = label, index = index}
+			item.BackgroundTransparency = 0
+			item.BackgroundColor3 = theme.window
+			local row = {item = item, hover = false}
+			row.bar = frame(item, theme.accent, UDim2.new(0, 2, 1, 0))
+			row.bar.Visible = false
+			if multi then
+				row.check = box(item, theme.control, UDim2.fromOffset(10, 10), UDim2.new(0, 8, 0.5, -5), theme.controlEdge)
+				shade(row.check, Color3.fromRGB(190, 190, 195))
+			end
+			row.label = text(item, name, UDim2.new(1, -34, 1, 0), UDim2.new(0, multi and 25 or 10, 0, 0))
+			row.index = text(item, "", UDim2.new(0, 18, 1, 0), UDim2.new(1, -22, 0, 0), Enum.TextXAlignment.Right, boldFont)
+			row.index.TextColor3 = theme.accent
+			rows[name] = row
 			item.MouseEnter:Connect(function()
-				if not position(name) then
-					tween(label, "TextColor3", white)
-				end
+				row.hover = true
+				paint(name)
 			end)
 			item.MouseLeave:Connect(function()
-				if not position(name) then
-					tween(label, "TextColor3", theme.text)
-				end
+				row.hover = false
+				paint(name)
 			end)
 			item.MouseButton1Click:Connect(function()
 				if multi then
@@ -1005,10 +1035,9 @@ function library:Window(title)
 
 	local main = box(gui, theme.window, UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), theme.inline)
 	main.Name = "Main"
-	main.InLine:Destroy()
 	library.main = main
 
-	local topLine = frame(main, theme.accent, UDim2.new(1, 0, 0, 1), UDim2.new())
+	local topLine = frame(main, theme.accent, UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
 	local topGradient = Instance.new("UIGradient", topLine)
 	topGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, theme.headline),
