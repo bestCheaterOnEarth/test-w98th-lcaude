@@ -1,10 +1,5 @@
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
-local TextService = game:GetService("TextService")
-
-local localPlayer = Players.LocalPlayer
+local UIS, TweenService, HttpService, TextService = game:GetService("UserInputService"), game:GetService("TweenService"), game:GetService("HttpService"), game:GetService("TextService")
+local localPlayer = game:GetService("Players").LocalPlayer
 local library = {flags = {}, setters = {}, listeners = {}, controls = {}, key = Enum.KeyCode.RightShift}
 local Options = setmetatable({}, {__index = function(_, flag) return library.controls[flag] end})
 library.Options = Options
@@ -548,7 +543,7 @@ function Column:Toggle(opts)
 	local square = box(row, theme.control, UDim2.new(0, 10, 0, 10), UDim2.new(0, 1, 0.5, -5), theme.controlEdge)
 	shade(square, Color3.fromRGB(190, 190, 195))
 	local squareInline = square:FindFirstChild("InLine")
-	local label = text(row, opts.text, UDim2.new(1, -20, 1, 0), UDim2.new(0, 19, 0, 0), nil, boldFont)
+	local label = text(row, opts.text, UDim2.new(1, -17, 1, 0), UDim2.new(0, 17, 0, 0), nil, boldFont)
 	label.TextColor3 = theme.textOff
 
 	local obj = {Value = false, right = 1}
@@ -713,13 +708,13 @@ function Column:Slider(opts)
 	local holder = Instance.new("Frame", self.holder)
 	holder.BackgroundTransparency = 1
 	holder.BorderSizePixel = 0
-	holder.Size = UDim2.new(1, 0, 0, 34)
+	holder.Size = UDim2.new(1, 0, 0, 38)
 
 	text(holder, opts.text, UDim2.new(1, -46, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
 	local valueText = text(holder, "", UDim2.new(0, 44, 0, 16), UDim2.new(1, -44, 0, 0), Enum.TextXAlignment.Right)
 	valueText.TextTransparency = 1
 
-	local track = box(holder, theme.control, UDim2.new(1, -2, 0, 6), UDim2.new(0, 1, 0, 21), theme.controlEdge)
+	local track = box(holder, theme.control, UDim2.new(1, -2, 0, 6), UDim2.new(0, 1, 0, 26), theme.controlEdge)
 	local inner = Instance.new("Frame", track)
 	inner.BackgroundTransparency = 1
 	inner.BorderSizePixel = 0
@@ -727,7 +722,7 @@ function Column:Slider(opts)
 	inner.Size = UDim2.new(1, -2, 1, -2)
 	local fill = frame(inner, theme.accent, UDim2.new(0, 0, 1, 0))
 	shade(fill, Color3.fromRGB(160, 160, 168))
-	local hit = hitbox(holder, UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 16))
+	local hit = hitbox(holder, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 18))
 
 	local hover, dragging = false, false
 	local function refreshValue()
@@ -770,6 +765,7 @@ end
 
 function Column:Dropdown(opts)
 	local flag = opts.flag or opts.text
+	local multi = opts.multi
 	local titled = opts.text ~= nil
 
 	local holder = Instance.new("Frame", self.holder)
@@ -781,11 +777,21 @@ function Column:Dropdown(opts)
 		text(holder, opts.text, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
 	end
 	local field = box(holder, theme.field, UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, titled and 19 or 1), theme.border)
-	local valueText = text(field, "", UDim2.new(1, -12, 1, 0), UDim2.new(0, 8, 0, 0))
+	shade(field, Color3.fromRGB(200, 200, 205))
+	local valueText = text(field, "", UDim2.new(1, -26, 1, 0), UDim2.new(0, 8, 0, 0))
+	valueText.TextTruncate = Enum.TextTruncate.AtEnd
+	local arrow = text(field, "v", UDim2.new(0, 14, 1, 0), UDim2.new(1, -18, 0, 0), Enum.TextXAlignment.Center, boldFont)
+	arrow.TextColor3 = theme.dim
 	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
 
-	hit.MouseEnter:Connect(function() tween(valueText, "TextColor3", white) end)
-	hit.MouseLeave:Connect(function() tween(valueText, "TextColor3", theme.text) end)
+	hit.MouseEnter:Connect(function()
+		tween(valueText, "TextColor3", white)
+		tween(arrow, "TextColor3", theme.accent)
+	end)
+	hit.MouseLeave:Connect(function()
+		tween(valueText, "TextColor3", theme.text)
+		tween(arrow, "TextColor3", theme.dim)
+	end)
 
 	local pop = box(library.main, theme.window, UDim2.new(), nil, theme.inline)
 	pop.Visible = false
@@ -806,13 +812,36 @@ function Column:Dropdown(opts)
 	listPad.PaddingLeft = UDim.new(0, 1)
 	listPad.PaddingRight = UDim.new(0, 1)
 
-	local rows, count = {}, 0
-	local obj = {Value = nil}
+	local rows, order, count = {}, {}, 0
+	local obj = {Value = multi and order or nil}
 
-	local function paint(name, row)
-		local selected = name == obj.Value
-		row.item.BackgroundTransparency = selected and 0 or 1
-		tween(row.label, "TextColor3", selected and white or theme.text)
+	local function position(name)
+		if multi then
+			return table.find(order, name)
+		end
+		return obj.Value == name and 1 or nil
+	end
+
+	local function paint(name)
+		local row = rows[name]
+		local index = position(name)
+		row.item.BackgroundTransparency = index and 0 or 1
+		row.bar.Visible = index ~= nil
+		row.index.Text = multi and index and tostring(index) or ""
+		tween(row.label, "TextColor3", index and white or theme.text)
+	end
+
+	local function commit(silent)
+		for name in pairs(rows) do
+			paint(name)
+		end
+		local value = multi and table.clone(order) or obj.Value
+		valueText.Text = multi and (#order > 0 and table.concat(order, ", ") or "none") or (obj.Value or "")
+		library.flags[flag] = value
+		fire(flag, value)
+		if not silent and opts.callback then
+			task.spawn(opts.callback, value)
+		end
 	end
 
 	function obj:SetValues(values)
@@ -821,62 +850,85 @@ function Column:Dropdown(opts)
 		end
 		rows, count = {}, #values
 		for _, name in ipairs(values) do
-			local item = hitbox(list, UDim2.new(1, 0, 0, 18))
+			local item = hitbox(list, UDim2.new(1, 0, 0, 20))
 			item.BackgroundColor3 = theme.selected
-			local label = text(item, name, UDim2.new(1, -10, 1, 0), UDim2.new(0, 7, 0, 0))
-			rows[name] = {item = item, label = label}
+			local bar = frame(item, theme.accent, UDim2.new(0, 2, 1, 0))
+			local label = text(item, name, UDim2.new(1, -30, 1, 0), UDim2.new(0, 9, 0, 0))
+			local index = text(item, "", UDim2.new(0, 18, 1, 0), UDim2.new(1, -22, 0, 0), Enum.TextXAlignment.Right, boldFont)
+			index.TextColor3 = theme.accent
+			rows[name] = {item = item, bar = bar, label = label, index = index}
 			item.MouseEnter:Connect(function()
-				if obj.Value ~= name then
+				if not position(name) then
 					tween(label, "TextColor3", white)
 				end
 			end)
 			item.MouseLeave:Connect(function()
-				if obj.Value ~= name then
+				if not position(name) then
 					tween(label, "TextColor3", theme.text)
 				end
 			end)
 			item.MouseButton1Click:Connect(function()
-				obj:Set(name)
-				closePopup()
+				if multi then
+					local at = table.find(order, name)
+					if at then
+						table.remove(order, at)
+					else
+						table.insert(order, name)
+					end
+					commit()
+				else
+					obj:Set(name)
+					closePopup()
+				end
 			end)
-			paint(name, rows[name])
 		end
-		if not rows[obj.Value] then
+		if multi then
+			for i = #order, 1, -1 do
+				if not rows[order[i]] then
+					table.remove(order, i)
+				end
+			end
+		elseif not rows[obj.Value] then
 			obj.Value = nil
-			valueText.Text = ""
-			library.flags[flag] = nil
 		end
+		commit(true)
 	end
 
 	function obj:Set(v, silent)
-		if not rows[v] then return end
-		obj.Value = v
-		library.flags[flag] = v
-		valueText.Text = v
-		for name, row in pairs(rows) do
-			paint(name, row)
+		if multi then
+			table.clear(order)
+			for _, name in ipairs(type(v) == "table" and v or {v}) do
+				if rows[name] and not table.find(order, name) then
+					table.insert(order, name)
+				end
+			end
+		elseif rows[v] then
+			obj.Value = v
+		else
+			return
 		end
-		fire(flag, v)
-		if not silent and opts.callback then
-			task.spawn(opts.callback, v)
-		end
+		commit(silent)
 	end
 
 	obj.SetValue = obj.Set
 
 	function obj:Get()
-		return obj.Value
+		return multi and table.clone(order) or obj.Value
+	end
+
+	function obj:Has(name)
+		return position(name) ~= nil
 	end
 
 	hit.MouseButton1Click:Connect(function()
-		pop.Size = UDim2.new(0, field.AbsoluteSize.X, 0, math.min(count, 8) * 18 + 4)
+		pop.Size = UDim2.new(0, field.AbsoluteSize.X, 0, math.min(count, 8) * 20 + 4)
 		openPopup(pop, field)
 	end)
 
 	library.setters[flag] = function(v) obj:Set(v) end
 	library.controls[flag] = obj
 	obj:SetValues(opts.items)
-	obj:Set(opts.value or opts.items[1], true)
+	obj:Set(opts.value or (not multi and opts.items[1] or nil), true)
 	return obj
 end
 
@@ -953,9 +1005,10 @@ function library:Window(title)
 
 	local main = box(gui, theme.window, UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), theme.inline)
 	main.Name = "Main"
+	main.InLine:Destroy()
 	library.main = main
 
-	local topLine = frame(main, theme.accent, UDim2.new(1, -2, 0, 2), UDim2.new(0, 1, 0, 1))
+	local topLine = frame(main, theme.accent, UDim2.new(1, 0, 0, 1), UDim2.new())
 	local topGradient = Instance.new("UIGradient", topLine)
 	topGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, theme.headline),
