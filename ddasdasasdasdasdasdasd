@@ -7,6 +7,7 @@ library.Toggles = Options
 local fontUiUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/windows-xp-tahoma.ttf"
 local fontBoldUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/TAHOMA-8PT-BOLD-WINDOWS-XP.TTF"
 local fontLogoUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/GothamBold.ttf"
+local fontIndicatorUrl = "https://github.com/mental1illness/ESP/raw/refs/heads/main/Assets/ProggyCleanBold.ttf"
 local configDir = "distort_configs"
 
 local black, white = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
@@ -124,6 +125,7 @@ end
 local uiFont = loadFont("tahomaxp", fontUiUrl)
 local boldFont = loadFont("tahomaboldxp", fontBoldUrl)
 local logoFont = loadFont("gothambold", fontLogoUrl)
+local indicatorFont = loadFont("proggycleanbold", fontIndicatorUrl)
 
 ----------------------------
 
@@ -437,12 +439,12 @@ local function hud()
 	indicator.Position = UDim2.new(0.5, 0, 0.62, 14)
 	indicatorShown = false
 
-	indicatorMain = text(indicator, "", UDim2.new(1, 0, 0, 26), UDim2.new(), Enum.TextXAlignment.Center, boldFont, white)
-	indicatorMain.TextSize = 22
+	indicatorMain = text(indicator, "", UDim2.new(1, 0, 0, 26), UDim2.new(), Enum.TextXAlignment.Center, indicatorFont, white)
+	indicatorMain.TextSize = 26
 	indicatorMain.TextTransparency = 1
 	textStroke(indicatorMain).Transparency = 1
 
-	indicatorSub = text(indicator, "", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 26), Enum.TextXAlignment.Center, boldFont, white)
+	indicatorSub = text(indicator, "", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 26), Enum.TextXAlignment.Center, indicatorFont, white)
 	indicatorSub.TextSize = 16
 	indicatorSub.TextTransparency = 1
 	textStroke(indicatorSub).Transparency = 1
@@ -514,8 +516,8 @@ local function bindRow(entry)
 	local row = Instance.new("Frame", bindList)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.ClipsDescendants = true
-	row.Size = UDim2.new(1, 0, 0, 0)
+	row.Size = UDim2.new(1, 0, 0, 16)
+	row.Visible = false
 	text(row, entry.name, UDim2.new(1, -50, 1, 0), UDim2.new(0, 8, 0, 0))
 	entry.key = text(row, "", UDim2.new(0, 44, 1, 0), UDim2.new(1, -52, 0, 0), Enum.TextXAlignment.Right, nil, "dim")
 	entry.row = row
@@ -525,11 +527,7 @@ function library.updateBinds()
 	if not bindList then return end
 	for _, entry in ipairs(library.binds) do
 		local bind = entry.bind
-		local show = bind.Value ~= nil and bind.Mode ~= "Always" and entry.active()
-		if show ~= entry.shown then
-			entry.shown = show
-			tween(entry.row, "Size", UDim2.new(1, 0, 0, show and 16 or 0), 0.15)
-		end
+		entry.row.Visible = bind.Value ~= nil and bind.Mode ~= "Always" and entry.active()
 		entry.key.Text = bind.Value and "[" .. bindLabel(bind.Value) .. "]" or ""
 	end
 end
@@ -597,6 +595,9 @@ Column.__index = Column
 function Column:UseHeader()
 	if self.hasHeader then return end
 	self.hasHeader = true
+	if self.pad then
+		self.pad.PaddingTop = UDim.new(0, 4)
+	end
 	self.header.Visible = true
 	self.line.Visible = true
 	self.scroll.Position = UDim2.new(0, 0, 0, headerHeight + 1)
@@ -750,7 +751,11 @@ local function buildPicker(parent, opts, order)
 		if type(c) == "string" then
 			c = Color3.fromHex(c)
 		end
-		h, s, v = c:ToHSV()
+		local newH, newS, newV = c:ToHSV()
+		if newS > 0 and newV > 0 then
+			h = newH
+		end
+		s, v = newS, newV
 		apply(silent)
 	end
 
@@ -812,15 +817,6 @@ local function addColor(slot, opts, flag)
 end
 
 ----------------------------
-
-local function setBindText(btn, str, color)
-	if btn.Text ~= str then
-		btn.Text = str
-		btn.TextTransparency = 0.7
-		tween(btn, "TextTransparency", 0, 0.2)
-	end
-	tween(btn, "TextColor3", color)
-end
 
 function Column:Toggle(opts)
 	local flag = opts.flag or opts.text
@@ -915,9 +911,10 @@ function Column:Toggle(opts)
 		end
 
 		local function render()
-			setBindText(btn, listening and "..." or (bind.Mode == "Always" and "always" or (bind.Value and bindLabel(bind.Value) or "none")), listening and theme.accent or theme.text)
+			btn.Text = listening and "..." or (bind.Mode == "Always" and "always" or (bind.Value and bindLabel(bind.Value) or "none"))
+			btn.TextColor3 = listening and theme.accent or theme.text
 			for name, item in pairs(items) do
-				tween(item, "TextColor3", name == bind.Mode and theme.accent or theme.text)
+				item.TextColor3 = name == bind.Mode and theme.accent or theme.text
 			end
 			library.updateBinds()
 		end
@@ -1050,7 +1047,8 @@ function Column:Keybind(opts)
 	local listening = false
 
 	local function render()
-		setBindText(btn, listening and "..." or (obj.Value and bindLabel(obj.Value) or "none"), listening and theme.accent or theme.text)
+		btn.Text = listening and "..." or (obj.Value and bindLabel(obj.Value) or "none")
+		btn.TextColor3 = listening and theme.accent or theme.text
 	end
 	table.insert(refreshers, render)
 
@@ -1482,15 +1480,78 @@ function Column:Preview(opts)
 	img.Position = UDim2.new(0.5, 0, 0.5, 0)
 	img.Size = UDim2.new(0.85, 0, 0.85, 0)
 	img.ScaleType = Enum.ScaleType.Fit
+	img.Visible = not opts.model
+
+	local viewport = Instance.new("ViewportFrame", view)
+	viewport.BackgroundTransparency = 1
+	viewport.BorderSizePixel = 0
+	viewport.Size = UDim2.new(1, 0, 1, 0)
+	viewport.Visible = false
+	viewport.CurrentCamera = Instance.new("Camera", viewport)
 
 	local empty = text(view, "no preview", UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, nil, "dim")
 	empty.Visible = false
 
-	local last
+	local last, stage, center, distance, request, angle = nil, nil, Vector3.zero, 0, 0, 0
+
+	if opts.model then
+		local spin
+		spin = game:GetService("RunService").RenderStepped:Connect(function(dt)
+			if not view:IsDescendantOf(game) then
+				return spin:Disconnect()
+			end
+			if stage then
+				angle += dt * 0.8
+				viewport.CurrentCamera.CFrame = CFrame.lookAt(center + CFrame.Angles(0, angle, 0) * Vector3.new(0, distance * 0.25, distance), center)
+			end
+		end)
+	end
+
+	local function showModel(asset)
+		if stage then
+			stage:Destroy()
+			stage = nil
+		end
+		if asset then
+			local clone = asset:Clone()
+			for _, part in ipairs(clone:GetDescendants()) do
+				if part:IsA("LuaSourceContainer") or part:IsA("Sound") then
+					part:Destroy()
+				end
+			end
+			local model = Instance.new("Model")
+			clone.Parent = model
+			local cf, size = model:GetBoundingBox()
+			if size.Magnitude > 0 then
+				model.Parent = viewport
+				stage, center, distance = model, cf.Position, size.Magnitude * 0.75
+			else
+				model:Destroy()
+			end
+		end
+		viewport.Visible = stage ~= nil
+		empty.Text = "no preview"
+		empty.Visible = stage == nil
+	end
+
 	local function update()
 		local item = library.flags[opts.image]
 		if not item then return end
 		local skin = opts.skin and library.flags[opts.skin] or nil
+		if opts.model then
+			request += 1
+			local id = request
+			viewport.Visible = false
+			empty.Text = "loading"
+			empty.Visible = true
+			task.spawn(function()
+				local ok, asset = pcall(opts.model, item, skin)
+				if id == request then
+					showModel(ok and asset or nil)
+				end
+			end)
+			return
+		end
 		if opts.render then
 			if skin then
 				local ok, shown = pcall(opts.render, img, item, skin)
@@ -1766,7 +1827,7 @@ function library:Window(title)
 		pad.PaddingBottom = UDim.new(0, 10)
 		pad.PaddingLeft = UDim.new(0, 10)
 		pad.PaddingRight = UDim.new(0, 10)
-		return setmetatable({holder = scroll, scroll = scroll, header = header, line = line, panel = inner}, Column)
+		return setmetatable({holder = scroll, scroll = scroll, header = header, line = line, panel = inner, pad = pad}, Column)
 	end
 
 	local window = {Gui = gui}
