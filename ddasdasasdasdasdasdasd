@@ -1067,7 +1067,8 @@ function Column:Preview(opts)
 		local skin = opts.skin and library.flags[opts.skin] or nil
 		if opts.render then
 			if skin then
-				empty.Visible = not opts.render(img, item, skin)
+				local ok, shown = pcall(opts.render, img, item, skin)
+				empty.Visible = not (ok and shown)
 			end
 			return
 		end
