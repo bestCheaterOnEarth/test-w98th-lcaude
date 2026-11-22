@@ -6,31 +6,99 @@ library.Toggles = Options
 
 local fontUiUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/windows-xp-tahoma.ttf"
 local fontBoldUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/TAHOMA-8PT-BOLD-WINDOWS-XP.TTF"
+local fontLogoUrl = "https://github.com/sametexe001/luas/raw/refs/heads/main/GothamBold.ttf"
 local configDir = "distort_configs"
 
 local black, white = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
+local headerHeight = 26
 
-local theme = {
+-- theme ------------------------------------------------------------------
+
+local defaults = {
+	accent = Color3.fromRGB(127, 110, 212),
 	window = Color3.fromRGB(20, 20, 21),
 	panel = Color3.fromRGB(16, 16, 17),
 	field = Color3.fromRGB(30, 30, 32),
 	control = Color3.fromRGB(46, 46, 49),
-	controlEdge = Color3.fromRGB(34, 34, 37),
-	border = Color3.fromRGB(42, 42, 45),
-	outline = black,
-	text = Color3.fromRGB(198, 197, 204),
-	textOff = Color3.fromRGB(160, 160, 166),
-	dim = Color3.fromRGB(125, 125, 132),
-	sep = Color3.fromRGB(62, 62, 68),
-	accent = Color3.fromRGB(127, 110, 212),
-	inline = Color3.fromRGB(75, 75, 75),
-	headline = Color3.fromRGB(46, 46, 50),
-	selected = Color3.fromRGB(36, 34, 48)
+	text = Color3.fromRGB(198, 197, 204)
 }
-theme.accentEdge = theme.accent:Lerp(black, 0.3)
+local theme = table.clone(defaults)
+theme.outline = black
 
-local headerHeight = 26
-local fallback = Font.new("rbxasset://fonts/families/GothamSSm.json")
+local function preset(over)
+	local p = table.clone(defaults)
+	for key, value in pairs(over) do
+		p[key] = value
+	end
+	return p
+end
+
+library.presets = {
+	default = preset({}),
+	crimson = preset({accent = Color3.fromRGB(214, 60, 84)}),
+	sunset = preset({accent = Color3.fromRGB(240, 140, 64)}),
+	ocean = preset({
+		accent = Color3.fromRGB(64, 160, 224), window = Color3.fromRGB(16, 20, 26), panel = Color3.fromRGB(12, 16, 22),
+		field = Color3.fromRGB(24, 30, 38), control = Color3.fromRGB(38, 46, 58), text = Color3.fromRGB(198, 204, 212)
+	}),
+	mint = preset({
+		accent = Color3.fromRGB(84, 200, 150), window = Color3.fromRGB(18, 22, 20), panel = Color3.fromRGB(14, 18, 16),
+		field = Color3.fromRGB(26, 32, 29), control = Color3.fromRGB(40, 48, 44), text = Color3.fromRGB(198, 208, 202)
+	}),
+	mono = preset({
+		accent = Color3.fromRGB(225, 225, 225), window = Color3.fromRGB(18, 18, 18), panel = Color3.fromRGB(12, 12, 12),
+		field = Color3.fromRGB(28, 28, 28), control = Color3.fromRGB(44, 44, 44), text = Color3.fromRGB(210, 210, 210)
+	})
+}
+
+local function deriveTheme()
+	theme.border = theme.window:Lerp(white, 0.09)
+	theme.headline = theme.window:Lerp(white, 0.11)
+	theme.inline = theme.window:Lerp(theme.text, 0.3)
+	theme.sep = theme.window:Lerp(theme.text, 0.25)
+	theme.controlEdge = theme.control:Lerp(black, 0.25)
+	theme.accentEdge = theme.accent:Lerp(black, 0.3)
+	theme.selected = theme.window:Lerp(theme.accent, 0.12)
+	theme.textOff = theme.text:Lerp(theme.window, 0.2)
+	theme.dim = theme.text:Lerp(theme.window, 0.4)
+end
+deriveTheme()
+
+-- registry: objects created with a theme key (string) are recolored live;
+-- state-driven controls (toggle, dropdown rows, tabs...) repaint through refreshers
+local registry, refreshers = {}, {}
+
+local function themed(obj, prop, value)
+	if type(value) == "string" then
+		table.insert(registry, {obj, prop, value})
+		value = theme[value]
+	end
+	obj[prop] = value
+end
+
+local function applyTheme()
+	deriveTheme()
+	for i = #registry, 1, -1 do
+		local entry = registry[i]
+		if entry[1].Parent then
+			entry[1][entry[2]] = theme[entry[3]]
+		else
+			table.remove(registry, i)
+		end
+	end
+	for _, fn in ipairs(refreshers) do
+		fn()
+	end
+end
+
+function library:SetTheme(key, value)
+	theme[key] = value
+	applyTheme()
+end
+
+-- fonts ------------------------------------------------------------------
+
+local fallback = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
 
 local function loadFont(name, url)
 	local ok, result = pcall(function()
@@ -49,7 +117,9 @@ end
 
 local uiFont = loadFont("tahomaxp", fontUiUrl)
 local boldFont = loadFont("tahomaboldxp", fontBoldUrl)
-local logoFont = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+local logoFont = loadFont("gothambold", fontLogoUrl)
+
+-- helpers ----------------------------------------------------------------
 
 local function guiParent()
 	return (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
@@ -85,9 +155,9 @@ end
 local function frame(parent, color, size, pos)
 	local f = Instance.new("Frame", parent)
 	f.BorderSizePixel = 0
-	f.BackgroundColor3 = color
 	f.Size = size
 	f.Position = pos or UDim2.new()
+	themed(f, "BackgroundColor3", color)
 	return f
 end
 
@@ -97,16 +167,16 @@ local function stroke(obj, color, thickness, name, position)
 	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	s.LineJoinMode = Enum.LineJoinMode.Miter
 	s.BorderStrokePosition = position or Enum.BorderStrokePosition.Outer
-	s.Color = color or theme.border
 	s.Thickness = thickness or 1
 	s.Parent = obj
+	themed(s, "Color", color or "border")
 	return s
 end
 
 local function box(parent, color, size, pos, inlineColor)
 	local f = frame(parent, color, size, pos)
-	stroke(f, theme.outline, 1, "OutLine", Enum.BorderStrokePosition.Outer)
-	stroke(f, inlineColor or theme.border, 1, "InLine", Enum.BorderStrokePosition.Inner)
+	stroke(f, "outline", 1, "OutLine", Enum.BorderStrokePosition.Outer)
+	stroke(f, inlineColor or "border", 1, "InLine", Enum.BorderStrokePosition.Inner)
 	return f
 end
 
@@ -117,17 +187,17 @@ local function shade(obj, bottom)
 	return g
 end
 
-local function text(parent, str, size, pos, align, font)
+local function text(parent, str, size, pos, align, font, color)
 	local l = Instance.new("TextLabel", parent)
 	l.BackgroundTransparency = 1
 	l.BorderSizePixel = 0
 	l.FontFace = font or uiFont
 	l.TextSize = 12
-	l.TextColor3 = theme.text
 	l.TextXAlignment = align or Enum.TextXAlignment.Left
 	l.Text = str
 	l.Size = size
 	l.Position = pos or UDim2.new()
+	themed(l, "TextColor3", color or "text")
 	return l
 end
 
@@ -182,6 +252,8 @@ local function inside(obj, p)
 	return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
 end
 
+-- popups (color picker / keybind mode) -------------------------------------
+
 local openFrame, openAnchor
 
 local function closePopup()
@@ -192,14 +264,13 @@ local function closePopup()
 end
 
 local function popup(size)
-	local pop = box(library.main, theme.window, size, nil, theme.inline)
+	local pop = box(library.main, "window", size, nil, "inline")
 	pop.Visible = false
 	pop.Active = true
 	pop.ZIndex = 20
 	return pop
 end
 
--- popups always open below the anchor
 local function openPopup(pop, anchor)
 	local show = openFrame ~= pop
 	closePopup()
@@ -207,7 +278,7 @@ local function openPopup(pop, anchor)
 		local main = library.main
 		pop.Position = UDim2.fromOffset(
 			math.min(anchor.AbsolutePosition.X - main.AbsolutePosition.X, main.AbsoluteSize.X - pop.Size.X.Offset - 6),
-			anchor.AbsolutePosition.Y - main.AbsolutePosition.Y + anchor.AbsoluteSize.Y + 3
+			math.min(anchor.AbsolutePosition.Y - main.AbsolutePosition.Y + anchor.AbsoluteSize.Y + 3, main.AbsoluteSize.Y - pop.Size.Y.Offset - 6)
 		)
 		pop.Visible = true
 		openFrame, openAnchor = pop, anchor
@@ -219,6 +290,14 @@ UIS.InputBegan:Connect(function(i)
 		closePopup()
 	end
 end)
+
+-- configs ----------------------------------------------------------------
+
+local function ensureDir()
+	if not isfolder(configDir) then
+		makefolder(configDir)
+	end
+end
 
 function library.configs()
 	local names = {}
@@ -234,26 +313,19 @@ function library.configs()
 	return names
 end
 
-function library.saveConfig(name)
-	if not (writefile and name and name ~= "") then return false end
-	if not isfolder(configDir) then
-		makefolder(configDir)
-	end
+function library.exportConfig()
 	local data = {}
 	for flag, value in pairs(library.flags) do
 		if flag:sub(1, 1) ~= "_" then
 			data[flag] = value
 		end
 	end
-	writefile(configDir .. "/" .. name .. ".json", HttpService:JSONEncode(data))
-	return true
+	return HttpService:JSONEncode(data)
 end
 
-function library.loadConfig(name)
-	local path = configDir .. "/" .. tostring(name) .. ".json"
-	if not (name and isfile and isfile(path)) then return false end
-	local ok, data = pcall(HttpService.JSONDecode, HttpService, readfile(path))
-	if not ok then return false end
+function library.importConfig(json)
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, json)
+	if not (ok and type(data) == "table") then return false end
 	for flag, value in pairs(data) do
 		if library.setters[flag] then
 			library.setters[flag](value)
@@ -261,6 +333,45 @@ function library.loadConfig(name)
 	end
 	return true
 end
+
+function library.saveConfig(name)
+	if not (writefile and name and name ~= "") then return false end
+	ensureDir()
+	writefile(configDir .. "/" .. name .. ".json", library.exportConfig())
+	return true
+end
+
+function library.loadConfig(name)
+	local path = configDir .. "/" .. tostring(name) .. ".json"
+	return name and isfile and isfile(path) and library.importConfig(readfile(path)) or false
+end
+
+function library.deleteConfig(name)
+	local path = configDir .. "/" .. tostring(name) .. ".json"
+	if delfile and isfile and isfile(path) then
+		delfile(path)
+		return true
+	end
+	return false
+end
+
+function library.autoloadName()
+	local path = configDir .. "/autoload.txt"
+	local name = isfile and isfile(path) and readfile(path) or ""
+	return name ~= "" and name or nil
+end
+
+function library.setAutoload(name)
+	ensureDir()
+	writefile(configDir .. "/autoload.txt", name or "")
+end
+
+function library.autoload()
+	local name = library.autoloadName()
+	return name and library.loadConfig(name)
+end
+
+-- hud --------------------------------------------------------------------
 
 local hudGui, hudArea, watermark, watermarkLabel, indicator, indicatorMain, indicatorSub, indicatorShown
 
@@ -290,13 +401,13 @@ local function hud()
 	areaList.Padding = UDim.new(0, 6)
 	areaList.SortOrder = Enum.SortOrder.LayoutOrder
 
-	watermark = box(hudGui, theme.window, UDim2.fromOffset(100, 22), UDim2.new(0.5, 0, 0, 8), theme.border)
+	watermark = box(hudGui, "window", UDim2.fromOffset(100, 22), UDim2.new(0.5, 0, 0, 8), "border")
 	watermark.Name = "Watermark"
 	watermark.AnchorPoint = Vector2.new(0.5, 0)
 	watermark.Visible = false
 	watermark.ZIndex = 5
 	shade(watermark, Color3.fromRGB(190, 190, 195))
-	frame(watermark, theme.accent, UDim2.new(1, 0, 0, 2)).ZIndex = 6
+	frame(watermark, "accent", UDim2.new(1, 0, 0, 2)).ZIndex = 6
 	watermarkLabel = text(watermark, "", UDim2.new(1, 0, 1, -2), UDim2.new(0, 0, 0, 2), Enum.TextXAlignment.Center, boldFont)
 	watermarkLabel.ZIndex = 6
 	textStroke(watermarkLabel)
@@ -310,15 +421,13 @@ local function hud()
 	indicator.Position = UDim2.new(0.5, 0, 0.62, 14)
 	indicatorShown = false
 
-	indicatorMain = text(indicator, "", UDim2.new(1, 0, 0, 26), UDim2.new(), Enum.TextXAlignment.Center, boldFont)
+	indicatorMain = text(indicator, "", UDim2.new(1, 0, 0, 26), UDim2.new(), Enum.TextXAlignment.Center, boldFont, white)
 	indicatorMain.TextSize = 22
-	indicatorMain.TextColor3 = white
 	indicatorMain.TextTransparency = 1
 	textStroke(indicatorMain).Transparency = 1
 
-	indicatorSub = text(indicator, "", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 26), Enum.TextXAlignment.Center, boldFont)
+	indicatorSub = text(indicator, "", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 26), Enum.TextXAlignment.Center, boldFont, white)
 	indicatorSub.TextSize = 16
-	indicatorSub.TextColor3 = white
 	indicatorSub.TextTransparency = 1
 	textStroke(indicatorSub).Transparency = 1
 
@@ -334,7 +443,7 @@ end
 
 function library:SetWatermarkVisibility(on)
 	hud()
-	watermark.Visible = on and true or false
+	watermark.Visible = on and watermarkLabel.Text ~= "" or false
 end
 
 function library:SetIndicator(main, sub)
@@ -360,11 +469,11 @@ function library:Notify(str, duration)
 	hud()
 	local width, height = measure(str, uiFont, 12) + 16, 22
 
-	local note = box(hudArea, theme.window, UDim2.fromOffset(0, height), nil, theme.border)
+	local note = box(hudArea, "window", UDim2.fromOffset(0, height), nil, "border")
 	note.ClipsDescendants = true
 	note.ZIndex = 10
 	shade(note, Color3.fromRGB(190, 190, 195))
-	frame(note, theme.accent, UDim2.new(0, 3, 1, 0)).ZIndex = 12
+	frame(note, "accent", UDim2.new(0, 3, 1, 0)).ZIndex = 12
 
 	local label = text(note, str, UDim2.new(1, -10, 1, 0), UDim2.new(0, 9, 0, 0))
 	label.ZIndex = 11
@@ -391,6 +500,8 @@ function library:Unload()
 	end
 end
 
+-- columns ----------------------------------------------------------------
+
 local Column = {}
 Column.__index = Column
 
@@ -405,9 +516,7 @@ end
 
 function Column:Header(str)
 	self:UseHeader()
-	local label = text(self.header, str, UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont)
-	label.TextColor3 = theme.accent
-	return label
+	return text(self.header, str, UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont, "accent")
 end
 
 function Column:Section(title)
@@ -416,7 +525,7 @@ function Column:Section(title)
 	row.BorderSizePixel = 0
 	row.Size = UDim2.new(1, 0, 0, 18)
 	text(row, title, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 1), nil, boldFont)
-	frame(row, theme.border, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -2))
+	frame(row, "border", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -2))
 	return row
 end
 
@@ -434,20 +543,27 @@ function Column:Pages(names)
 	list.Padding = UDim.new(0, 8)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 
-	local pages, buttons, result = {}, {}, {}
+	local pages, buttons, result, active = {}, {}, {}, nil
+
+	local function paintButtons()
+		for n, button in pairs(buttons) do
+			tween(button, "TextColor3", n == active and theme.accent or theme.text)
+		end
+	end
+	table.insert(refreshers, paintButtons)
 
 	local function show(name)
 		closePopup()
+		active = name
 		for n, page in pairs(pages) do
 			page.Visible = n == name
-			tween(buttons[n], "TextColor3", n == name and theme.accent or theme.text)
 		end
+		paintButtons()
 	end
 
 	for i, name in ipairs(names) do
 		if i > 1 then
-			local slash = text(self.header, "/", UDim2.new(0, 6, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont)
-			slash.TextColor3 = theme.sep
+			local slash = text(self.header, "/", UDim2.new(0, 6, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont, "sep")
 			slash.LayoutOrder = i * 2 - 1
 		end
 
@@ -494,9 +610,8 @@ local function buildPicker(row, opts, offset)
 
 	local pop = popup(UDim2.new(0, 160, 0, 124))
 
-	local palette = box(pop, Color3.new(1, 0, 0), UDim2.new(1, -36, 1, -14), UDim2.new(0, 7, 0, 7), theme.controlEdge)
-	local whiteLayer = frame(palette, white, UDim2.new(1, 0, 1, 0))
-	Instance.new("UIGradient", whiteLayer).Transparency = NumberSequence.new(0, 1)
+	local palette = box(pop, Color3.new(1, 0, 0), UDim2.new(1, -36, 1, -14), UDim2.new(0, 7, 0, 7), "controlEdge")
+	Instance.new("UIGradient", frame(palette, white, UDim2.new(1, 0, 1, 0))).Transparency = NumberSequence.new(0, 1)
 	local fade = Instance.new("UIGradient", frame(palette, black, UDim2.new(1, 0, 1, 0)))
 	fade.Rotation = 90
 	fade.Transparency = NumberSequence.new(1, 0)
@@ -507,7 +622,7 @@ local function buildPicker(row, opts, offset)
 	local paletteHit = hitbox(palette, UDim2.new(1, 0, 1, 0))
 	paletteHit.ZIndex = 3
 
-	local hueBar = box(pop, white, UDim2.new(0, 16, 1, -14), UDim2.new(1, -24, 0, 7), theme.controlEdge)
+	local hueBar = box(pop, white, UDim2.new(0, 16, 1, -14), UDim2.new(1, -24, 0, 7), "controlEdge")
 	local keys = {}
 	for n = 0, 6 do
 		table.insert(keys, ColorSequenceKeypoint.new(n / 6, Color3.fromHSV(n / 6, 1, 1)))
@@ -583,8 +698,7 @@ function Column:Toggle(opts)
 	local row = hitbox(self.holder, UDim2.new(1, 0, 0, 16))
 	local square = box(row, theme.control, UDim2.new(0, 10, 0, 10), UDim2.new(0, 1, 0.5, -5), theme.controlEdge)
 	shade(square, Color3.fromRGB(190, 190, 195))
-	local label = text(row, opts.text, UDim2.new(1, -17, 1, 0), UDim2.new(0, 17, 0, 0), nil, boldFont)
-	label.TextColor3 = theme.textOff
+	local label = text(row, opts.text, UDim2.new(1, -17, 1, 0), UDim2.new(0, 17, 0, 0), nil, boldFont, theme.textOff)
 
 	local obj = {Value = false, right = 1}
 
@@ -593,6 +707,13 @@ function Column:Toggle(opts)
 		obj.right = obj.right + width + 6
 		return x
 	end
+
+	local function paint()
+		tween(square, "BackgroundColor3", obj.Value and theme.accent or theme.control)
+		tween(square.InLine, "Color", obj.Value and theme.accentEdge or theme.controlEdge)
+		tween(label, "TextColor3", obj.Value and theme.text or theme.textOff)
+	end
+	table.insert(refreshers, paint)
 
 	row.MouseEnter:Connect(function()
 		if not obj.Value then
@@ -608,9 +729,7 @@ function Column:Toggle(opts)
 	function obj:Set(on, silent)
 		obj.Value = on and true or false
 		library.flags[flag] = obj.Value
-		tween(square, "BackgroundColor3", obj.Value and theme.accent or theme.control)
-		tween(square.InLine, "Color", obj.Value and theme.accentEdge or theme.controlEdge)
-		tween(label, "TextColor3", obj.Value and theme.text or theme.textOff)
+		paint()
 		fire(flag, obj.Value)
 		if not silent and opts.callback then
 			task.spawn(opts.callback, obj.Value)
@@ -640,7 +759,6 @@ function Column:Toggle(opts)
 		btn.Position = UDim2.new(1, -(x + 40), 0, 0)
 		btn.FontFace = uiFont
 		btn.TextSize = 12
-		btn.TextColor3 = theme.text
 		btn.TextXAlignment = Enum.TextXAlignment.Right
 
 		local bind = {Value = typeof(kopts.value) == "EnumItem" and kopts.value.Name or kopts.value, Held = false, State = false, Mode = kopts.mode or "Hold"}
@@ -681,6 +799,7 @@ function Column:Toggle(opts)
 				item.TextColor3 = name == bind.Mode and theme.accent or theme.text
 			end
 		end
+		table.insert(refreshers, render)
 
 		local function setMode(name)
 			bind.Mode = name
@@ -778,8 +897,67 @@ function Column:Toggle(opts)
 	return obj
 end
 
-function Column:Button(opts)
-	local btnBox = box(self.holder, theme.control, UDim2.new(1, -2, 0, 22), nil, theme.controlEdge)
+-- standalone keybind (no toggle attached), e.g. the menu key
+function Column:Keybind(opts)
+	local flag = opts.flag or opts.text
+	local row = Instance.new("Frame", self.holder)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, 16)
+	text(row, opts.text, UDim2.new(1, -60, 1, 0), UDim2.new(0, 1, 0, 0), nil, boldFont)
+
+	local btn = Instance.new("TextButton", row)
+	btn.AutoButtonColor = false
+	btn.BackgroundTransparency = 1
+	btn.BorderSizePixel = 0
+	btn.Size = UDim2.new(0, 56, 1, 0)
+	btn.Position = UDim2.new(1, -56, 0, 0)
+	btn.FontFace = uiFont
+	btn.TextSize = 12
+	btn.TextXAlignment = Enum.TextXAlignment.Right
+
+	local obj = {Value = typeof(opts.value) == "EnumItem" and opts.value.Name or opts.value}
+	local listening = false
+
+	local function render()
+		btn.Text = listening and "..." or (obj.Value and bindLabel(obj.Value) or "none")
+		btn.TextColor3 = listening and theme.accent or theme.text
+	end
+	table.insert(refreshers, render)
+
+	function obj:Set(name, silent)
+		obj.Value = name
+		library.flags[flag] = name
+		render()
+		if not silent and opts.callback then
+			task.spawn(opts.callback, name)
+		end
+	end
+
+	function obj:Get()
+		return obj.Value
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		listening = true
+		render()
+	end)
+
+	UIS.InputBegan:Connect(function(i)
+		if listening and i.KeyCode ~= Enum.KeyCode.Unknown then
+			listening = false
+			obj:Set(i.KeyCode ~= Enum.KeyCode.Escape and i.KeyCode.Name or obj.Value)
+		end
+	end)
+
+	library.setters[flag] = function(v) obj:Set(v) end
+	library.controls[flag] = obj
+	obj:Set(obj.Value, true)
+	return obj
+end
+
+local function makeButton(parent, opts, size, pos)
+	local btnBox = box(parent, "control", size, pos, "controlEdge")
 	shade(btnBox, Color3.fromRGB(190, 190, 195))
 	local b = Instance.new("TextButton", btnBox)
 	b.AutoButtonColor = false
@@ -788,9 +966,9 @@ function Column:Button(opts)
 	b.Size = UDim2.new(1, 0, 1, 0)
 	b.FontFace = boldFont
 	b.TextSize = 12
-	b.TextColor3 = theme.text
 	b.TextTruncate = Enum.TextTruncate.AtEnd
 	b.Text = opts.text
+	themed(b, "TextColor3", "text")
 
 	b.MouseEnter:Connect(function() tween(b, "TextColor3", theme.accent) end)
 	b.MouseLeave:Connect(function() tween(b, "TextColor3", theme.text) end)
@@ -801,7 +979,30 @@ function Column:Button(opts)
 			task.spawn(opts.callback)
 		end
 	end)
-	return btnBox
+	return btnBox, b
+end
+
+function Column:Button(opts)
+	return makeButton(self.holder, opts, UDim2.new(1, -2, 0, 22))
+end
+
+-- several buttons side by side; returns the TextButtons
+function Column:Buttons(defs)
+	local row = Instance.new("Frame", self.holder)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, 22)
+	local result = {}
+	for i, def in ipairs(defs) do
+		local cell = Instance.new("Frame", row)
+		cell.BackgroundTransparency = 1
+		cell.BorderSizePixel = 0
+		cell.Size = UDim2.new(1 / #defs, 0, 1, 0)
+		cell.Position = UDim2.new((i - 1) / #defs, 0, 0, 0)
+		local _, b = makeButton(cell, def, UDim2.new(1, -5, 1, 0))
+		result[i] = b
+	end
+	return result
 end
 
 function Column:Textbox(opts)
@@ -811,7 +1012,7 @@ function Column:Textbox(opts)
 	holder.Size = UDim2.new(1, 0, 0, 42)
 
 	text(holder, opts.text, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
-	local field = box(holder, theme.field, UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, 18), theme.border)
+	local field = box(holder, "field", UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, 18), "border")
 	shade(field, Color3.fromRGB(200, 200, 205))
 
 	local input = Instance.new("TextBox", field)
@@ -821,13 +1022,13 @@ function Column:Textbox(opts)
 	input.Position = UDim2.new(0, 8, 0, 0)
 	input.FontFace = uiFont
 	input.TextSize = 12
-	input.TextColor3 = theme.text
-	input.PlaceholderColor3 = theme.dim
 	input.PlaceholderText = opts.placeholder or ""
 	input.Text = opts.value or ""
 	input.TextXAlignment = Enum.TextXAlignment.Left
 	input.TextTruncate = Enum.TextTruncate.AtEnd
 	input.ClearTextOnFocus = false
+	themed(input, "TextColor3", "text")
+	themed(input, "PlaceholderColor3", "dim")
 
 	input.Focused:Connect(function()
 		tween(field.InLine, "Color", theme.accentEdge)
@@ -858,13 +1059,13 @@ function Column:Slider(opts)
 	local valueText = text(holder, "", UDim2.new(0, 44, 0, 16), UDim2.new(1, -44, 0, 0), Enum.TextXAlignment.Right)
 	valueText.TextTransparency = 1
 
-	local track = box(holder, theme.control, UDim2.new(1, -2, 0, 6), UDim2.new(0, 1, 0, 22), theme.controlEdge)
+	local track = box(holder, "control", UDim2.new(1, -2, 0, 6), UDim2.new(0, 1, 0, 22), "controlEdge")
 	local inner = Instance.new("Frame", track)
 	inner.BackgroundTransparency = 1
 	inner.BorderSizePixel = 0
 	inner.Position = UDim2.new(0, 1, 0, 1)
 	inner.Size = UDim2.new(1, -2, 1, -2)
-	local fill = frame(inner, theme.accent, UDim2.new(0, 0, 1, 0))
+	local fill = frame(inner, "accent", UDim2.new(0, 0, 1, 0))
 	shade(fill, Color3.fromRGB(160, 160, 168))
 	local hit = hitbox(holder, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 14))
 
@@ -907,38 +1108,25 @@ function Column:Slider(opts)
 	return obj
 end
 
+-- inline dropdown: the list expands under the field and pushes the controls
+-- below it down, so it always goes down and can never be cut off or overlap
 function Column:Dropdown(opts)
 	local flag = opts.flag or opts.text
 	local multi = opts.multi
-	local titled = opts.text ~= nil
+	local fieldY = opts.text and 18 or 1
+	local base = opts.text and 42 or 24
+	local open = false
 
 	local holder = Instance.new("Frame", self.holder)
 	holder.BackgroundTransparency = 1
 	holder.BorderSizePixel = 0
-	holder.Size = UDim2.new(1, 0, 0, titled and 42 or 24)
+	holder.Size = UDim2.new(1, 0, 0, base)
 
-	if titled then
+	if opts.text then
 		text(holder, opts.text, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
 	end
 
-	local pop = popup(UDim2.new())
-	local list = Instance.new("ScrollingFrame", pop)
-	list.BackgroundTransparency = 1
-	list.BorderSizePixel = 0
-	list.Active = true
-	list.Size = UDim2.new(1, 0, 1, 0)
-	list.ScrollBarThickness = 3
-	list.ScrollBarImageColor3 = theme.accent
-	list.CanvasSize = UDim2.new()
-	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	Instance.new("UIListLayout", list).SortOrder = Enum.SortOrder.LayoutOrder
-	local listPad = Instance.new("UIPadding", list)
-	listPad.PaddingTop = UDim.new(0, 2)
-	listPad.PaddingBottom = UDim.new(0, 2)
-	listPad.PaddingLeft = UDim.new(0, 2)
-	listPad.PaddingRight = UDim.new(0, 2)
-
-	local field = box(holder, theme.field, UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, titled and 18 or 1), theme.border)
+	local field = box(holder, "field", UDim2.new(1, -2, 0, 22), UDim2.new(0, 1, 0, fieldY), theme.border)
 	shade(field, Color3.fromRGB(200, 200, 205))
 	local valueText = text(field, "", UDim2.new(1, -28, 1, 0), UDim2.new(0, 8, 0, 0))
 	valueText.TextTruncate = Enum.TextTruncate.AtEnd
@@ -950,28 +1138,24 @@ function Column:Dropdown(opts)
 		pixels[i] = frame(arrow, theme.dim, UDim2.fromOffset(9 - i * 2, 1), UDim2.fromOffset(i - 1, i - 1))
 	end
 
-	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
-	hit.MouseEnter:Connect(function()
-		tween(valueText, "TextColor3", white)
-		if not pop.Visible then
-			tween(field.InLine, "Color", theme.inline)
-		end
-	end)
-	hit.MouseLeave:Connect(function()
-		tween(valueText, "TextColor3", theme.text)
-		if not pop.Visible then
-			tween(field.InLine, "Color", theme.border)
-		end
-	end)
-
-	pop:GetPropertyChangedSignal("Visible"):Connect(function()
-		local open = pop.Visible
-		for i, pixel in ipairs(pixels) do
-			pixel.Position = UDim2.fromOffset(i - 1, open and 4 - i or i - 1)
-			tween(pixel, "BackgroundColor3", open and theme.accent or theme.dim)
-		end
-		tween(field.InLine, "Color", open and theme.accentEdge or theme.border)
-	end)
+	local listBox = box(holder, "window", UDim2.new(1, -2, 0, 0), UDim2.new(0, 1, 0, fieldY + 26), "inline")
+	listBox.Visible = false
+	listBox.ClipsDescendants = true
+	local list = Instance.new("ScrollingFrame", listBox)
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.Active = true
+	list.Size = UDim2.new(1, 0, 1, 0)
+	list.ScrollBarThickness = 3
+	list.CanvasSize = UDim2.new()
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	themed(list, "ScrollBarImageColor3", "accent")
+	Instance.new("UIListLayout", list).SortOrder = Enum.SortOrder.LayoutOrder
+	local listPad = Instance.new("UIPadding", list)
+	listPad.PaddingTop = UDim.new(0, 2)
+	listPad.PaddingBottom = UDim.new(0, 2)
+	listPad.PaddingLeft = UDim.new(0, 2)
+	listPad.PaddingRight = UDim.new(0, 2)
 
 	local rows, order, count = {}, {}, 0
 	local obj = {Value = multi and order or nil}
@@ -983,6 +1167,14 @@ function Column:Dropdown(opts)
 		return obj.Value == name and 1 or nil
 	end
 
+	local function paintField()
+		for i, pixel in ipairs(pixels) do
+			pixel.Position = UDim2.fromOffset(i - 1, open and 4 - i or i - 1)
+			tween(pixel, "BackgroundColor3", open and theme.accent or theme.dim)
+		end
+		tween(field.InLine, "Color", open and theme.accentEdge or theme.border)
+	end
+
 	local function paint(name)
 		local row, index = rows[name], position(name)
 		tween(row.item, "BackgroundColor3", index and theme.selected or (row.hover and theme.field or theme.window), 0.1)
@@ -990,6 +1182,51 @@ function Column:Dropdown(opts)
 		row.bar.Visible = index ~= nil
 		row.index.Text = multi and index and tostring(index) or ""
 	end
+
+	table.insert(refreshers, function()
+		paintField()
+		for name in pairs(rows) do
+			paint(name)
+		end
+	end)
+
+	local function setOpen(on)
+		if on and count == 0 then return end
+		open = on
+		local height = math.min(count, 6) * 20 + 4
+		list.ScrollingEnabled = count > 6
+		listBox.Visible = true
+		tween(listBox, "Size", UDim2.new(1, -2, 0, on and height or 0), 0.12)
+		tween(holder, "Size", UDim2.new(1, 0, 0, on and fieldY + 28 + height or base), 0.12)
+		paintField()
+		task.delay(0.14, function()
+			if open ~= on then return end
+			listBox.Visible = on
+			if on then
+				local over = listBox.AbsolutePosition.Y + listBox.AbsoluteSize.Y + 6 - (self.scroll.AbsolutePosition.Y + self.scroll.AbsoluteSize.Y)
+				if over > 0 then
+					tween(self.scroll, "CanvasPosition", self.scroll.CanvasPosition + Vector2.new(0, over), 0.12)
+				end
+			end
+		end)
+	end
+
+	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
+	hit.MouseEnter:Connect(function()
+		tween(valueText, "TextColor3", white)
+		if not open then
+			tween(field.InLine, "Color", theme.inline)
+		end
+	end)
+	hit.MouseLeave:Connect(function()
+		tween(valueText, "TextColor3", theme.text)
+		if not open then
+			tween(field.InLine, "Color", theme.border)
+		end
+	end)
+	hit.MouseButton1Click:Connect(function()
+		setOpen(not open)
+	end)
 
 	local function commit(silent)
 		for name in pairs(rows) do
@@ -1014,11 +1251,10 @@ function Column:Dropdown(opts)
 			item.BackgroundTransparency = 0
 			item.BackgroundColor3 = theme.window
 			local row = {item = item, hover = false}
-			row.bar = frame(item, theme.accent, UDim2.new(0, 2, 1, 0))
+			row.bar = frame(item, "accent", UDim2.new(0, 2, 1, 0))
 			row.bar.Visible = false
 			row.label = text(item, name, UDim2.new(1, -34, 1, 0), UDim2.new(0, 10, 0, 0))
-			row.index = text(item, "", UDim2.new(0, 18, 1, 0), UDim2.new(1, -22, 0, 0), Enum.TextXAlignment.Right, boldFont)
-			row.index.TextColor3 = theme.accent
+			row.index = text(item, "", UDim2.new(0, 18, 1, 0), UDim2.new(1, -22, 0, 0), Enum.TextXAlignment.Right, boldFont, "accent")
 			rows[name] = row
 			item.MouseEnter:Connect(function()
 				row.hover = true
@@ -1039,7 +1275,7 @@ function Column:Dropdown(opts)
 					commit()
 				else
 					obj:Set(name)
-					closePopup()
+					setOpen(false)
 				end
 			end)
 		end
@@ -1053,6 +1289,9 @@ function Column:Dropdown(opts)
 			obj.Value = nil
 		end
 		commit(true)
+		if open then
+			setOpen(count > 0)
+		end
 	end
 
 	function obj:Set(v, silent)
@@ -1081,60 +1320,11 @@ function Column:Dropdown(opts)
 		return position(name) ~= nil
 	end
 
-	hit.MouseButton1Click:Connect(function()
-		if count == 0 then return end
-		pop.Size = UDim2.new(0, field.AbsoluteSize.X, 0, math.min(count, 6) * 20 + 4)
-		openPopup(pop, field)
-	end)
-
 	library.setters[flag] = function(v) obj:Set(v) end
 	library.controls[flag] = obj
 	obj:SetValues(opts.items)
 	obj:Set(opts.value or (not multi and opts.items[1] or nil), true)
 	return obj
-end
-
-function Column:Configs()
-	local nameBox = self:Textbox({text = "name", placeholder = "config name"})
-	local list = self:Dropdown({flag = "_config", text = "configs", items = library.configs()})
-
-	local function refresh(name)
-		list:SetValues(library.configs())
-		if name then
-			list:Set(name)
-		end
-	end
-
-	self:Button({text = "create", callback = function()
-		local name = nameBox:Get():gsub("[^%w _%-]", ""):match("^%s*(.-)%s*$")
-		if name == "" then
-			return library:Notify("type a config name first")
-		end
-		library.saveConfig(name)
-		refresh(name)
-		nameBox:Set("")
-		library:Notify("created " .. name)
-	end})
-
-	self:Button({text = "save", callback = function()
-		local name = list:Get()
-		if name and library.saveConfig(name) then
-			library:Notify("saved " .. name)
-		else
-			library:Notify("select a config first")
-		end
-	end})
-
-	self:Button({text = "load", callback = function()
-		local name = list:Get()
-		if name and library.loadConfig(name) then
-			library:Notify("loaded " .. name)
-		else
-			library:Notify("select a config first")
-		end
-	end})
-
-	return list
 end
 
 function Column:Colorpicker(opts)
@@ -1154,7 +1344,7 @@ function Column:Preview(opts)
 	holder.Size = UDim2.new(1, 0, 0, opts.height or 130)
 
 	text(holder, opts.text or "preview", UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
-	local view = box(holder, Color3.fromRGB(12, 12, 14), UDim2.new(1, -2, 1, -22), UDim2.new(0, 1, 0, 20), theme.border)
+	local view = box(holder, Color3.fromRGB(12, 12, 14), UDim2.new(1, -2, 1, -22), UDim2.new(0, 1, 0, 20), "border")
 	view.ClipsDescendants = true
 
 	local img = Instance.new("ImageLabel", view)
@@ -1165,8 +1355,7 @@ function Column:Preview(opts)
 	img.Size = UDim2.new(0.85, 0, 0.85, 0)
 	img.ScaleType = Enum.ScaleType.Fit
 
-	local empty = text(view, "no preview", UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center)
-	empty.TextColor3 = theme.dim
+	local empty = text(view, "no preview", UDim2.new(1, 0, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, nil, "dim")
 	empty.Visible = false
 
 	local last
@@ -1203,6 +1392,142 @@ function Column:Preview(opts)
 	return holder
 end
 
+-- settings blocks --------------------------------------------------------
+
+function Column:Configs()
+	self:Section("configs")
+	local nameBox = self:Textbox({text = "name", placeholder = "config name"})
+	local list = self:Dropdown({flag = "_config", text = "config list", items = library.configs()})
+	local auto = self:Label("autoload: " .. (library.autoloadName() or "none"))
+
+	local function refresh(name)
+		list:SetValues(library.configs())
+		if name then
+			list:Set(name, true)
+		end
+	end
+
+	local function selected()
+		local name = list:Get()
+		if not name then
+			library:Notify("select a config first")
+		end
+		return name
+	end
+
+	self:Buttons({
+		{text = "create", callback = function()
+			local name = nameBox:Get():gsub("[^%w _%-]", ""):match("^%s*(.-)%s*$")
+			if name == "" then
+				return library:Notify("type a config name first")
+			end
+			if table.find(library.configs(), name) then
+				return library:Notify(name .. " already exists, use save")
+			end
+			library.saveConfig(name)
+			refresh(name)
+			nameBox:Set("")
+			library:Notify("created " .. name)
+		end},
+		{text = "save", callback = function()
+			local name = selected()
+			if name and library.saveConfig(name) then
+				library:Notify("saved " .. name)
+			end
+		end},
+		{text = "load", callback = function()
+			local name = selected()
+			if name then
+				library:Notify(library.loadConfig(name) and "loaded " .. name or "could not load " .. name)
+			end
+		end}
+	})
+
+	local armed, deleteButton = false, nil
+	local row = self:Buttons({
+		{text = "delete", callback = function()
+			local name = selected()
+			if not name then return end
+			if not armed then
+				armed = true
+				deleteButton.Text = "sure?"
+				task.delay(2.5, function()
+					armed = false
+					deleteButton.Text = "delete"
+				end)
+				return
+			end
+			armed = false
+			deleteButton.Text = "delete"
+			if library.deleteConfig(name) then
+				if library.autoloadName() == name then
+					library.setAutoload(nil)
+					auto.Text = "autoload: none"
+				end
+				refresh()
+				library:Notify("deleted " .. name)
+			end
+		end},
+		{text = "refresh", callback = function()
+			refresh(list:Get())
+			library:Notify("config list refreshed")
+		end},
+		{text = "autoload", callback = function()
+			local name = selected()
+			if not name then return end
+			library.setAutoload(library.autoloadName() ~= name and name or nil)
+			auto.Text = "autoload: " .. (library.autoloadName() or "none")
+		end}
+	})
+	deleteButton = row[1]
+
+	self:Buttons({
+		{text = "export", callback = function()
+			if setclipboard then
+				setclipboard(library.exportConfig())
+				library:Notify("config copied to clipboard")
+			else
+				library:Notify("clipboard not supported")
+			end
+		end},
+		{text = "import", callback = function()
+			local json = getclipboard and getclipboard()
+			library:Notify(json and library.importConfig(json) and "config imported" or "invalid clipboard config")
+		end}
+	})
+
+	return list
+end
+
+function Column:Theme()
+	self:Section("theme")
+	self:Dropdown({flag = "_preset", text = "preset", items = {"default", "crimson", "sunset", "ocean", "mint", "mono"}, callback = function(name)
+		for key, color in pairs(library.presets[name]) do
+			Options["ui_" .. key]:Set(color)
+		end
+	end})
+	for _, key in ipairs({"accent", "window", "panel", "field", "control", "text"}) do
+		self:Colorpicker({text = key, flag = "ui_" .. key, value = theme[key], callback = function(color)
+			library:SetTheme(key, color)
+		end})
+	end
+end
+
+function Column:Menu()
+	self:Section("menu")
+	self:Keybind({text = "menu key", flag = "ui_key", value = library.key, callback = function(name)
+		library.key = Enum.KeyCode[name]
+	end})
+	self:Toggle({text = "watermark", flag = "ui_watermark", value = true, callback = function(on)
+		library:SetWatermarkVisibility(on)
+	end})
+	self:Button({text = "unload", callback = function()
+		library:Unload()
+	end})
+end
+
+-- window -----------------------------------------------------------------
+
 function library:Window(title)
 	local parent = guiParent()
 	if parent:FindFirstChild("Distort") then
@@ -1215,29 +1540,29 @@ function library:Window(title)
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	library.gui = gui
 
-	local main = box(gui, theme.window, UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), theme.inline)
+	local main = box(gui, "window", UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), "inline")
 	main.Name = "Main"
 	library.main = main
 
-	local topLine = frame(main, theme.headline, UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
-	Instance.new("UIGradient", topLine).Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, theme.headline),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 70, 76)),
-		ColorSequenceKeypoint.new(1, theme.headline)
+	local topLine = frame(main, "sep", UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
+	Instance.new("UIGradient", topLine).Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.8),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(1, 0.8)
 	})
 
-	local bar = frame(main, theme.window, UDim2.new(1, 0, 0, 42), UDim2.new(0, 0, 0, 4))
+	-- inset by 1px on each side so the scanlines never cut the main InLine
+	local bar = frame(main, "window", UDim2.new(1, -2, 0, 42), UDim2.new(0, 1, 0, 4))
 	bar.BackgroundTransparency = 1
 	local logoText = string.upper(title or "distort")
 	local function logoLayer(color, dx, dy, transparency)
-		local l = text(bar, logoText, UDim2.new(1, 0, 1, 0), UDim2.new(0, dx, 0, dy), Enum.TextXAlignment.Center, logoFont)
+		local l = text(bar, logoText, UDim2.new(1, 0, 1, 0), UDim2.new(0, dx, 0, dy), Enum.TextXAlignment.Center, logoFont, color)
 		l.TextSize = 34
-		l.TextColor3 = color
 		l.TextTransparency = transparency
 		return l
 	end
 	logoLayer(Color3.fromRGB(255, 60, 120), 2, 1, 0.5)
-	logoLayer(theme.accent, -2, -1, 0.5)
+	logoLayer("accent", -2, -1, 0.5)
 	Instance.new("UIGradient", logoLayer(white, 0, 0, 0)).Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 40, 60)),
 		ColorSequenceKeypoint.new(0.45, Color3.fromRGB(235, 110, 150)),
@@ -1245,12 +1570,12 @@ function library:Window(title)
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 105, 120))
 	})
 	for _, y in ipairs({9, 16, 23, 30}) do
-		local scan = frame(bar, theme.window, UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 0, y))
+		local scan = frame(bar, "window", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 0, y))
 		scan.BackgroundTransparency = 0.35
 		scan.ZIndex = 2
 	end
 
-	local tabBar = box(main, theme.panel, UDim2.new(1, -20, 0, 26), UDim2.new(0, 10, 0, 48), theme.border)
+	local tabBar = box(main, "panel", UDim2.new(1, -20, 0, 26), UDim2.new(0, 10, 0, 48), "border")
 	local tabList = Instance.new("UIListLayout", tabBar)
 	tabList.FillDirection = Enum.FillDirection.Horizontal
 	tabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -1266,7 +1591,7 @@ function library:Window(title)
 	body.Size = UDim2.new(1, -20, 1, -94)
 
 	local function column(page, pos)
-		local inner = box(page, theme.panel, UDim2.new(0.5, -5, 1, 0), pos, theme.border)
+		local inner = box(page, "panel", UDim2.new(0.5, -5, 1, 0), pos, "border")
 
 		local header = Instance.new("Frame", inner)
 		header.Name = "Header"
@@ -1276,7 +1601,7 @@ function library:Window(title)
 		header.Size = UDim2.new(1, -2, 0, headerHeight - 1)
 		header.Visible = false
 
-		local line = frame(inner, theme.headline, UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, headerHeight))
+		local line = frame(inner, "accent", UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, headerHeight))
 		line.Name = "HeaderLine"
 		line.Visible = false
 
@@ -1303,6 +1628,13 @@ function library:Window(title)
 	local window = {Gui = gui}
 	local current
 	local count = 0
+	local tabButtons = {}
+
+	table.insert(refreshers, function()
+		for _, button in ipairs(tabButtons) do
+			tween(button, "TextColor3", current and current.btn == button and theme.accent or theme.text)
+		end
+	end)
 
 	function window:Tab(name)
 		count = count + 1
@@ -1320,8 +1652,7 @@ function library:Window(title)
 		}
 
 		if count > 1 then
-			local slash = text(tabBar, "/", UDim2.new(0, 6, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont)
-			slash.TextColor3 = theme.sep
+			local slash = text(tabBar, "/", UDim2.new(0, 6, 1, 0), UDim2.new(), Enum.TextXAlignment.Center, boldFont, "sep")
 			slash.LayoutOrder = count * 2 - 1
 		end
 
@@ -1336,6 +1667,7 @@ function library:Window(title)
 		btn.TextColor3 = theme.text
 		btn.Text = name
 		btn.LayoutOrder = count * 2
+		table.insert(tabButtons, btn)
 
 		local function open()
 			closePopup()
@@ -1362,6 +1694,15 @@ function library:Window(title)
 		if not current then
 			open()
 		end
+		return tab
+	end
+
+	-- ready-made config tab: configs on the left, theme + menu on the right
+	function window:Settings(name)
+		local tab = window:Tab(name or "config")
+		tab.Left:Configs()
+		tab.Right:Theme()
+		tab.Right:Menu()
 		return tab
 	end
 
