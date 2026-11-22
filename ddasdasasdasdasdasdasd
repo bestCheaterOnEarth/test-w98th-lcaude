@@ -489,9 +489,10 @@ function library:Notify(str, duration)
 	note.ClipsDescendants = true
 	note.ZIndex = 10
 	shade(note, Color3.fromRGB(190, 190, 195))
-	frame(note, "accent", UDim2.new(0, 3, 1, 0)).ZIndex = 12
+	frame(note, "accent", UDim2.new(0, 1, 1, 0)).ZIndex = 12
 
-	local label = text(note, str, UDim2.fromOffset(width - 3, height), UDim2.new(0, 3, 0, 0), Enum.TextXAlignment.Center)
+	local label = text(note, str, UDim2.fromOffset(width - 1, height), UDim2.new(0, 1, 0, -1), Enum.TextXAlignment.Center)
+	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 11
 	textStroke(label)
 
@@ -513,8 +514,8 @@ local function bindRow(entry)
 	local row = Instance.new("Frame", bindList)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.Size = UDim2.new(1, 0, 0, 16)
-	row.Visible = false
+	row.ClipsDescendants = true
+	row.Size = UDim2.new(1, 0, 0, 0)
 	text(row, entry.name, UDim2.new(1, -50, 1, 0), UDim2.new(0, 8, 0, 0))
 	entry.key = text(row, "", UDim2.new(0, 44, 1, 0), UDim2.new(1, -52, 0, 0), Enum.TextXAlignment.Right, nil, "dim")
 	entry.row = row
@@ -524,7 +525,11 @@ function library.updateBinds()
 	if not bindList then return end
 	for _, entry in ipairs(library.binds) do
 		local bind = entry.bind
-		entry.row.Visible = bind.Value ~= nil and bind.Mode ~= "Always" and entry.active()
+		local show = bind.Value ~= nil and bind.Mode ~= "Always" and entry.active()
+		if show ~= entry.shown then
+			entry.shown = show
+			tween(entry.row, "Size", UDim2.new(1, 0, 0, show and 16 or 0), 0.15)
+		end
 		entry.key.Text = bind.Value and "[" .. bindLabel(bind.Value) .. "]" or ""
 	end
 end
@@ -808,6 +813,15 @@ end
 
 ----------------------------
 
+local function setBindText(btn, str, color)
+	if btn.Text ~= str then
+		btn.Text = str
+		btn.TextTransparency = 0.7
+		tween(btn, "TextTransparency", 0, 0.2)
+	end
+	tween(btn, "TextColor3", color)
+end
+
 function Column:Toggle(opts)
 	local flag = opts.flag or opts.text
 
@@ -901,10 +915,9 @@ function Column:Toggle(opts)
 		end
 
 		local function render()
-			btn.Text = listening and "..." or (bind.Mode == "Always" and "always" or (bind.Value and bindLabel(bind.Value) or "none"))
-			btn.TextColor3 = listening and theme.accent or theme.text
+			setBindText(btn, listening and "..." or (bind.Mode == "Always" and "always" or (bind.Value and bindLabel(bind.Value) or "none")), listening and theme.accent or theme.text)
 			for name, item in pairs(items) do
-				item.TextColor3 = name == bind.Mode and theme.accent or theme.text
+				tween(item, "TextColor3", name == bind.Mode and theme.accent or theme.text)
 			end
 			library.updateBinds()
 		end
@@ -1037,8 +1050,7 @@ function Column:Keybind(opts)
 	local listening = false
 
 	local function render()
-		btn.Text = listening and "..." or (obj.Value and bindLabel(obj.Value) or "none")
-		btn.TextColor3 = listening and theme.accent or theme.text
+		setBindText(btn, listening and "..." or (obj.Value and bindLabel(obj.Value) or "none"), listening and theme.accent or theme.text)
 	end
 	table.insert(refreshers, render)
 
@@ -1679,7 +1691,7 @@ function library:Window(title)
 		NumberSequenceKeypoint.new(1, 0.8)
 	})
 
-	local bar = frame(main, "window", UDim2.new(1, -2, 0, 42), UDim2.new(0, 1, 0, 4))
+	local bar = frame(main, "window", UDim2.new(1, -2, 0, 34), UDim2.new(0, 1, 0, 12))
 	bar.BackgroundTransparency = 1
 	local logoText = string.upper(title or "distort")
 	local function logoLayer(color, dx, dy, transparency)
@@ -1701,13 +1713,13 @@ function library:Window(title)
 	end
 	paintLogo()
 	table.insert(refreshers, paintLogo)
-	for _, y in ipairs({9, 16, 23, 30}) do
+	for _, y in ipairs({7, 14, 21, 28}) do
 		local scan = frame(bar, "window", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 0, y))
 		scan.BackgroundTransparency = 0.35
 		scan.ZIndex = 2
 	end
 
-	local tabBar = box(main, "panel", UDim2.new(1, -20, 0, 26), UDim2.new(0, 10, 0, 48), "border")
+	local tabBar = box(main, "panel", UDim2.new(1, -20, 0, 26), UDim2.new(0, 10, 0, 46), "border")
 	local tabList = Instance.new("UIListLayout", tabBar)
 	tabList.FillDirection = Enum.FillDirection.Horizontal
 	tabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -1719,8 +1731,8 @@ function library:Window(title)
 	body.Name = "Inside"
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
-	body.Position = UDim2.new(0, 10, 0, 84)
-	body.Size = UDim2.new(1, -20, 1, -94)
+	body.Position = UDim2.new(0, 10, 0, 82)
+	body.Size = UDim2.new(1, -20, 1, -92)
 
 	local function column(page, pos)
 		local inner = box(page, "panel", UDim2.new(0.5, -5, 1, 0), pos, "border")
