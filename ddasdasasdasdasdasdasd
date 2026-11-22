@@ -209,12 +209,12 @@ local function text(parent, str, size, pos, align, font, color)
 	return l
 end
 
-local function textStroke(label)
+local function textStroke(label, color)
 	local s = Instance.new("UIStroke")
-	s.Color = black
 	s.Thickness = 1
 	s.LineJoinMode = Enum.LineJoinMode.Miter
 	s.Parent = label
+	themed(s, "Color", color or black)
 	return s
 end
 
@@ -428,7 +428,7 @@ local function hud()
 	frame(watermark, "accent", UDim2.new(1, 0, 0, 2)).ZIndex = 6
 	watermarkLabel = text(watermark, "", UDim2.new(1, 0, 1, -2), UDim2.new(0, 0, 0, 2), Enum.TextXAlignment.Center, boldFont)
 	watermarkLabel.ZIndex = 6
-	textStroke(watermarkLabel)
+	textStroke(watermarkLabel, "window")
 
 	indicator = Instance.new("Frame", hudGui)
 	indicator.Name = "Indicator"
@@ -485,7 +485,7 @@ end
 
 function library:Notify(str, duration)
 	hud()
-	local width, height = measure(str, uiFont, 12) + 28, 22
+	local width, height = measure(str, boldFont, 12) + 28, 22
 
 	local note = box(hudArea, "window", UDim2.fromOffset(0, height), nil, "border")
 	note.ClipsDescendants = true
@@ -493,10 +493,10 @@ function library:Notify(str, duration)
 	shade(note, Color3.fromRGB(190, 190, 195))
 	frame(note, "accent", UDim2.new(0, 1, 1, 0)).ZIndex = 12
 
-	local label = text(note, str, UDim2.fromOffset(width - 1, height), UDim2.new(0, 1, 0, -1), Enum.TextXAlignment.Center)
+	local label = text(note, str, UDim2.fromOffset(width - 1, height), UDim2.new(0, 1, 0, 0), Enum.TextXAlignment.Center, boldFont)
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 11
-	textStroke(label)
+	textStroke(label, "window")
 
 	local info = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	TweenService:Create(note, info, {Size = UDim2.fromOffset(width, height)}):Play()
@@ -696,7 +696,7 @@ end
 local function buildPicker(parent, opts, order)
 	local flag = opts.flag
 
-	local swatch = box(parent, white, UDim2.new(0, 22, 0, 10), nil, Color3.fromRGB(30, 30, 30))
+	local swatch = box(parent, white, UDim2.new(0, 22, 0, 10), nil, "controlEdge")
 	swatch.LayoutOrder = order
 	local hit = hitbox(swatch, UDim2.new(1, 0, 1, 0))
 	hit.ZIndex = 3
@@ -771,6 +771,12 @@ local function buildPicker(parent, opts, order)
 
 	drag(hueHit, function(p)
 		h = math.clamp((p.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y, 0, 1)
+		if s < 0.05 then
+			s = 1
+		end
+		if v < 0.05 then
+			v = 1
+		end
 		apply()
 	end)
 
@@ -817,6 +823,34 @@ local function addColor(slot, opts, flag)
 end
 
 ----------------------------
+
+local function menu(names, pick)
+	local pop = popup(UDim2.fromOffset(64, #names * 20 + 4))
+	Instance.new("UIListLayout", pop).SortOrder = Enum.SortOrder.LayoutOrder
+	local pad = Instance.new("UIPadding", pop)
+	pad.PaddingTop = UDim.new(0, 2)
+	pad.PaddingLeft = UDim.new(0, 2)
+	pad.PaddingRight = UDim.new(0, 2)
+	local items = {}
+	for i, name in ipairs(names) do
+		local item = Instance.new("TextButton", pop)
+		item.AutoButtonColor = false
+		item.BackgroundTransparency = 1
+		item.BorderSizePixel = 0
+		item.Size = UDim2.new(1, 0, 0, 20)
+		item.FontFace = uiFont
+		item.TextSize = 12
+		item.Text = string.lower(name)
+		item.ZIndex = 21
+		item.LayoutOrder = i
+		item.MouseButton1Click:Connect(function()
+			pick(name)
+			closePopup()
+		end)
+		items[name] = item
+	end
+	return pop, items
+end
 
 function Column:Toggle(opts)
 	local flag = opts.flag or opts.text
@@ -884,13 +918,7 @@ function Column:Toggle(opts)
 		local listening = false
 		local modes = {"Hold", "Toggle", "Always"}
 
-		local pop = popup(UDim2.fromOffset(64, #modes * 20 + 4))
-		Instance.new("UIListLayout", pop).SortOrder = Enum.SortOrder.LayoutOrder
-		local popPad = Instance.new("UIPadding", pop)
-		popPad.PaddingTop = UDim.new(0, 2)
-		popPad.PaddingLeft = UDim.new(0, 2)
-		popPad.PaddingRight = UDim.new(0, 2)
-		local items = {}
+		local pop, items
 
 		function bind:IsHeld()
 			return bind.Held
@@ -927,23 +955,21 @@ function Column:Toggle(opts)
 			render()
 		end
 
-		for i, name in ipairs(modes) do
-			local item = Instance.new("TextButton", pop)
-			item.AutoButtonColor = false
-			item.BackgroundTransparency = 1
-			item.BorderSizePixel = 0
-			item.Size = UDim2.new(1, 0, 0, 20)
-			item.FontFace = uiFont
-			item.TextSize = 12
-			item.Text = string.lower(name)
-			item.ZIndex = 21
-			item.LayoutOrder = i
-			item.MouseButton1Click:Connect(function()
-				setMode(name)
-				closePopup()
-			end)
-			items[name] = item
+		local function unbind()
+			bind.Value = nil
+			bind.Held = false
+			bind.State = false
+			library.flags[kflag] = false
+			render()
 		end
+
+		pop, items = menu({"Hold", "Toggle", "Always", "Unbind"}, function(name)
+			if name == "Unbind" then
+				unbind()
+			else
+				setMode(name)
+			end
+		end)
 
 		btn.MouseButton1Click:Connect(function()
 			listening = true
@@ -967,7 +993,7 @@ function Column:Toggle(opts)
 				bind.Held = false
 				bind.State = false
 				bind.Value = name ~= "Escape" and name or nil
-				library.flags[kflag] = bind.Value
+				library.flags[kflag] = bind.Value or false
 				render()
 				return
 			end
@@ -991,18 +1017,18 @@ function Column:Toggle(opts)
 		end)
 
 		library.setters[kflag] = function(v)
-			bind.Value = v
+			bind.Value = v or nil
 			bind.Held = false
 			bind.State = false
 			render()
 		end
 		library.setters[kflag .. "_mode"] = function(v)
-			if items[v] then
+			if table.find(modes, v) then
 				setMode(v)
 			end
 		end
 		library.controls[kflag] = bind
-		library.flags[kflag] = bind.Value
+		library.flags[kflag] = bind.Value or false
 		library.flags[kflag .. "_mode"] = bind.Mode
 		library.addBind(opts.text, bind, function()
 			if kopts.toggle then
@@ -1054,7 +1080,7 @@ function Column:Keybind(opts)
 
 	function obj:Set(name, silent)
 		obj.Value = name
-		library.flags[flag] = name
+		library.flags[flag] = name or false
 		render()
 		if not silent and opts.callback then
 			task.spawn(opts.callback, name)
@@ -1069,6 +1095,16 @@ function Column:Keybind(opts)
 		listening = true
 		render()
 	end)
+
+	if not opts.required then
+		local pop = menu({"Unbind"}, function()
+			listening = false
+			obj:Set(nil)
+		end)
+		btn.MouseButton2Click:Connect(function()
+			openPopup(pop, btn)
+		end)
+	end
 
 	UIS.InputBegan:Connect(function(i)
 		if listening and i.KeyCode ~= Enum.KeyCode.Unknown then
@@ -1109,26 +1145,29 @@ local function makeButton(parent, opts, size, pos)
 	return btnBox, b
 end
 
-function Column:Button(opts)
-	return makeButton(self.holder, opts, UDim2.new(1, -2, 0, 22))
-end
-
 function Column:Buttons(defs)
 	local row = Instance.new("Frame", self.holder)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.Size = UDim2.new(1, 0, 0, 22)
+	row.Size = UDim2.new(1, 0, 0, 26)
+	local layout = Instance.new("UIListLayout", row)
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local pad = Instance.new("UIPadding", row)
+	pad.PaddingTop = UDim.new(0, 2)
+	pad.PaddingLeft = UDim.new(0, 1)
+	pad.PaddingRight = UDim.new(0, 1)
 	local result = {}
 	for i, def in ipairs(defs) do
-		local cell = Instance.new("Frame", row)
-		cell.BackgroundTransparency = 1
-		cell.BorderSizePixel = 0
-		cell.Size = UDim2.new(1 / #defs, 0, 1, 0)
-		cell.Position = UDim2.new((i - 1) / #defs, 0, 0, 0)
-		local _, b = makeButton(cell, def, UDim2.new(1, -5, 1, 0))
+		local _, b = makeButton(row, def, UDim2.new(1 / #defs, -6 * (#defs - 1) / #defs, 0, 22))
 		result[i] = b
 	end
 	return result
+end
+
+function Column:Button(opts)
+	return self:Buttons({opts})[1]
 end
 
 function Column:Textbox(opts)
@@ -1470,7 +1509,7 @@ function Column:Preview(opts)
 	holder.Size = UDim2.new(1, 0, 0, opts.height or 130)
 
 	text(holder, opts.text or "preview", UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 0), nil, boldFont)
-	local view = box(holder, Color3.fromRGB(12, 12, 14), UDim2.new(1, -2, 1, -22), UDim2.new(0, 1, 0, 20), "border")
+	local view = box(holder, "panel", UDim2.new(1, -2, 1, -22), UDim2.new(0, 1, 0, 20), "border")
 	view.ClipsDescendants = true
 
 	local img = Instance.new("ImageLabel", view)
@@ -1480,7 +1519,6 @@ function Column:Preview(opts)
 	img.Position = UDim2.new(0.5, 0, 0.5, 0)
 	img.Size = UDim2.new(0.85, 0, 0.85, 0)
 	img.ScaleType = Enum.ScaleType.Fit
-	img.Visible = not opts.model
 
 	local viewport = Instance.new("ViewportFrame", view)
 	viewport.BackgroundTransparency = 1
@@ -1501,57 +1539,51 @@ function Column:Preview(opts)
 				return spin:Disconnect()
 			end
 			if stage then
-				angle += dt * 0.8
+				angle = angle + dt * 0.8
 				viewport.CurrentCamera.CFrame = CFrame.lookAt(center + CFrame.Angles(0, angle, 0) * Vector3.new(0, distance * 0.25, distance), center)
 			end
 		end)
 	end
 
+	local function showImage(source)
+		img.Visible = source ~= nil
+		empty.Visible = source == nil
+		if source ~= last then
+			last = source
+			img.Image = source or ""
+			if source then
+				img.ImageTransparency = 1
+				tween(img, "ImageTransparency", 0, 0.25)
+			end
+		end
+	end
+
 	local function showModel(asset)
-		if stage then
-			stage:Destroy()
-			stage = nil
-		end
-		if asset then
-			local clone = asset:Clone()
-			for _, part in ipairs(clone:GetDescendants()) do
-				if part:IsA("LuaSourceContainer") or part:IsA("Sound") then
-					part:Destroy()
-				end
-			end
-			local model = Instance.new("Model")
-			clone.Parent = model
-			local cf, size = model:GetBoundingBox()
-			if size.Magnitude > 0 then
-				model.Parent = viewport
-				stage, center, distance = model, cf.Position, size.Magnitude * 0.75
-			else
-				model:Destroy()
+		local clone = asset:Clone()
+		for _, part in ipairs(clone:GetDescendants()) do
+			if part:IsA("LuaSourceContainer") or part:IsA("Sound") then
+				part:Destroy()
 			end
 		end
-		viewport.Visible = stage ~= nil
-		empty.Text = "no preview"
-		empty.Visible = stage == nil
+		local model = Instance.new("Model")
+		clone.Parent = model
+		local cf, size = model:GetBoundingBox()
+		if size.Magnitude == 0 then
+			model:Destroy()
+			return false
+		end
+		model.Parent = viewport
+		stage, center, distance = model, cf.Position, size.Magnitude * 0.75
+		img.Visible = false
+		empty.Visible = false
+		viewport.Visible = true
+		return true
 	end
 
 	local function update()
 		local item = library.flags[opts.image]
 		if not item then return end
 		local skin = opts.skin and library.flags[opts.skin] or nil
-		if opts.model then
-			request += 1
-			local id = request
-			viewport.Visible = false
-			empty.Text = "loading"
-			empty.Visible = true
-			task.spawn(function()
-				local ok, asset = pcall(opts.model, item, skin)
-				if id == request then
-					showModel(ok and asset or nil)
-				end
-			end)
-			return
-		end
 		if opts.render then
 			if skin then
 				local ok, shown = pcall(opts.render, img, item, skin)
@@ -1559,17 +1591,28 @@ function Column:Preview(opts)
 			end
 			return
 		end
-		local source = opts.resolve(item, skin)
-		if source == last then return end
-		last = source
-		empty.Visible = source == nil
-		if not source then
-			img.Image = ""
-			return
+		request = request + 1
+		local id = request
+		if stage then
+			stage:Destroy()
+			stage = nil
 		end
-		img.ImageTransparency = 1
-		img.Image = source
-		tween(img, "ImageTransparency", 0, 0.25)
+		viewport.Visible = false
+		empty.Text = opts.model and "loading" or "no preview"
+		showImage(opts.resolve and opts.resolve(item, skin) or nil)
+		if opts.model then
+			task.spawn(function()
+				local ok, asset = pcall(opts.model, item, skin)
+				if id ~= request then return end
+				local done, shown = false, false
+				if ok and typeof(asset) == "Instance" then
+					done, shown = pcall(showModel, asset)
+				end
+				if not (done and shown) then
+					empty.Text = "no preview"
+				end
+			end)
+		end
 	end
 
 	library.listen(opts.image, update)
@@ -1709,7 +1752,7 @@ end
 
 function Column:Menu()
 	self:Section("menu")
-	self:Keybind({text = "menu key", flag = "ui_key", value = library.key, callback = function(name)
+	self:Keybind({text = "menu key", flag = "ui_key", required = true, value = library.key, callback = function(name)
 		library.key = Enum.KeyCode[name]
 	end})
 	self:Toggle({text = "watermark", flag = "ui_watermark", value = true, callback = function(on)
