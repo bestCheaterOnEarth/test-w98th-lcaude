@@ -254,7 +254,7 @@ function library.loadConfig(json)
 	end
 end
 
-local hudGui, hudArea, watermark, watermarkLabel
+local hudGui, hudArea, watermark, watermarkLabel, indicator, indicatorMain, indicatorSub, indicatorShown
 
 local function hud()
 	if hudGui and hudGui.Parent then
@@ -294,6 +294,27 @@ local function hud()
 	watermarkLabel.ZIndex = 6
 	textStroke(watermarkLabel)
 
+	indicator = Instance.new("Frame", hudGui)
+	indicator.Name = "Indicator"
+	indicator.BackgroundTransparency = 1
+	indicator.BorderSizePixel = 0
+	indicator.AnchorPoint = Vector2.new(0.5, 0)
+	indicator.Size = UDim2.fromOffset(300, 46)
+	indicator.Position = UDim2.new(0.5, 0, 0.62, 14)
+	indicatorShown = false
+
+	indicatorMain = text(indicator, "", UDim2.new(1, 0, 0, 26), UDim2.new(), Enum.TextXAlignment.Center, boldFont)
+	indicatorMain.TextSize = 22
+	indicatorMain.TextColor3 = white
+	indicatorMain.TextTransparency = 1
+	textStroke(indicatorMain).Transparency = 1
+
+	indicatorSub = text(indicator, "", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 26), Enum.TextXAlignment.Center, boldFont)
+	indicatorSub.TextSize = 16
+	indicatorSub.TextColor3 = white
+	indicatorSub.TextTransparency = 1
+	textStroke(indicatorSub).Transparency = 1
+
 	return hudGui
 end
 
@@ -307,6 +328,25 @@ end
 function library:SetWatermarkVisibility(on)
 	hud()
 	watermark.Visible = on and true or false
+end
+
+function library:SetIndicator(main, sub)
+	hud()
+	indicatorMain.Text = main
+	indicatorSub.Text = sub or ""
+end
+
+function library:SetIndicatorVisibility(on)
+	hud()
+	on = on and true or false
+	if on == indicatorShown then return end
+	indicatorShown = on
+	local alpha = on and 0 or 1
+	tween(indicator, "Position", UDim2.new(0.5, 0, 0.62, on and 0 or 14), 0.3)
+	for _, label in ipairs({indicatorMain, indicatorSub}) do
+		tween(label, "TextTransparency", alpha, 0.3)
+		tween(label:FindFirstChildOfClass("UIStroke"), "Transparency", alpha, 0.3)
+	end
 end
 
 function library:Notify(str, duration)
