@@ -12,12 +12,12 @@ local LOGO_FONT_URL = nil
 local black, white = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
 
 local theme = {
-	window = Color3.fromRGB(23, 23, 23),
-	panel = Color3.fromRGB(20, 19, 24),
-	field = Color3.fromRGB(34, 34, 36),
-	control = Color3.fromRGB(51, 51, 53),
-	controlEdge = Color3.fromRGB(38, 38, 40),
-	border = Color3.fromRGB(52, 52, 54),
+	window = Color3.fromRGB(20, 20, 21),
+	panel = Color3.fromRGB(16, 16, 17),
+	field = Color3.fromRGB(30, 30, 32),
+	control = Color3.fromRGB(46, 46, 49),
+	controlEdge = Color3.fromRGB(34, 34, 37),
+	border = Color3.fromRGB(42, 42, 45),
 	outline = black,
 	text = Color3.fromRGB(198, 197, 204),
 	textOff = Color3.fromRGB(160, 160, 166),
@@ -26,9 +26,9 @@ local theme = {
 	accent = Color3.fromRGB(127, 110, 212),
 	inline = Color3.fromRGB(75, 75, 75)
 }
-theme.headline = theme.accent:Lerp(black, 0.45)
+theme.headline = Color3.fromRGB(46, 46, 50)
 theme.accentEdge = theme.accent:Lerp(black, 0.3)
-theme.selected = theme.accent:Lerp(theme.window, 0.85)
+theme.selected = Color3.fromRGB(30, 30, 34)
 
 local HEADER = 26
 local fallback = Font.new("rbxasset://fonts/families/GothamSSm.json")
@@ -590,23 +590,45 @@ function Column:Toggle(opts)
 	function obj:AddKeybind(kopts)
 		kopts = kopts or {}
 		local kflag = kopts.flag or (flag .. "_bind")
-		local x = reserve(34)
+		local x = reserve(40)
 
 		local btn = Instance.new("TextButton", row)
 		btn.AutoButtonColor = false
 		btn.BackgroundTransparency = 1
 		btn.BorderSizePixel = 0
-		btn.Size = UDim2.new(0, 34, 1, 0)
-		btn.Position = UDim2.new(1, -(x + 34), 0, 0)
+		btn.Size = UDim2.new(0, 40, 1, 0)
+		btn.Position = UDim2.new(1, -(x + 40), 0, 0)
 		btn.FontFace = uiFont
 		btn.TextSize = 12
 		btn.TextColor3 = theme.text
 		btn.TextXAlignment = Enum.TextXAlignment.Right
 
-		local bind = {Value = typeof(kopts.value) == "EnumItem" and kopts.value.Name or kopts.value, Held = false}
+		local bind = {Value = typeof(kopts.value) == "EnumItem" and kopts.value.Name or kopts.value, Held = false, State = false, Mode = kopts.mode or "Hold"}
 		local listening = false
+		local modes = {"Hold", "Toggle", "Always"}
+
+		local pop = box(library.main, theme.window, UDim2.fromOffset(64, #modes * 20 + 4), nil, theme.inline)
+		pop.Visible = false
+		pop.ZIndex = 20
+		local popList = Instance.new("UIListLayout", pop)
+		popList.SortOrder = Enum.SortOrder.LayoutOrder
+		local popPad = Instance.new("UIPadding", pop)
+		popPad.PaddingTop = UDim.new(0, 2)
+		popPad.PaddingLeft = UDim.new(0, 2)
+		popPad.PaddingRight = UDim.new(0, 2)
+		local items = {}
 
 		function bind:IsHeld()
+			return bind.Held
+		end
+
+		function bind:IsActive()
+			if bind.Mode == "Always" or bind.Value == nil then
+				return true
+			end
+			if bind.Mode == "Toggle" then
+				return bind.State
+			end
 			return bind.Held
 		end
 
@@ -615,13 +637,46 @@ function Column:Toggle(opts)
 		end
 
 		local function render()
-			btn.Text = listening and "..." or (bind.Value and bindLabel(bind.Value) or "none")
+			local key = bind.Value and bindLabel(bind.Value) or "none"
+			btn.Text = listening and "..." or (bind.Mode == "Always" and "always" or (bind.Mode == "Toggle" and key .. " t" or key))
 			btn.TextColor3 = listening and theme.accent or theme.text
+			for name, item in pairs(items) do
+				item.TextColor3 = name == bind.Mode and theme.accent or theme.text
+			end
+		end
+
+		local function setMode(name)
+			bind.Mode = name
+			bind.State = false
+			library.flags[kflag .. "_mode"] = name
+			render()
+		end
+
+		for i, name in ipairs(modes) do
+			local item = Instance.new("TextButton", pop)
+			item.AutoButtonColor = false
+			item.BackgroundTransparency = 1
+			item.BorderSizePixel = 0
+			item.Size = UDim2.new(1, 0, 0, 20)
+			item.FontFace = uiFont
+			item.TextSize = 12
+			item.Text = string.lower(name)
+			item.ZIndex = 21
+			item.LayoutOrder = i
+			item.MouseButton1Click:Connect(function()
+				setMode(name)
+				closePopup()
+			end)
+			items[name] = item
 		end
 
 		btn.MouseButton1Click:Connect(function()
 			listening = true
 			render()
+		end)
+
+		btn.MouseButton2Click:Connect(function()
+			openPopup(pop, btn)
 		end)
 
 		UIS.InputBegan:Connect(function(i, processed)
@@ -635,6 +690,7 @@ function Column:Toggle(opts)
 				if not name then return end
 				listening = false
 				bind.Held = false
+				bind.State = false
 				bind.Value = name ~= "Escape" and name or nil
 				library.flags[kflag] = bind.Value
 				render()
@@ -642,6 +698,9 @@ function Column:Toggle(opts)
 			end
 			if not processed and matches(i) then
 				bind.Held = true
+				if bind.Mode == "Toggle" then
+					bind.State = not bind.State
+				end
 				if kopts.toggle then
 					obj:Set(not obj.Value)
 				end
@@ -657,10 +716,17 @@ function Column:Toggle(opts)
 		library.setters[kflag] = function(v)
 			bind.Value = v
 			bind.Held = false
+			bind.State = false
 			render()
+		end
+		library.setters[kflag .. "_mode"] = function(v)
+			if items[v] then
+				setMode(v)
+			end
 		end
 		library.controls[kflag] = bind
 		library.flags[kflag] = bind.Value
+		library.flags[kflag .. "_mode"] = bind.Mode
 		render()
 		return bind
 	end
@@ -1043,11 +1109,11 @@ function library:Window(title)
 	main.Name = "Main"
 	library.main = main
 
-	local topLine = frame(main, theme.accent, UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
+	local topLine = frame(main, theme.headline, UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
 	local topGradient = Instance.new("UIGradient", topLine)
 	topGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, theme.headline),
-		ColorSequenceKeypoint.new(0.5, theme.accent),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 70, 76)),
 		ColorSequenceKeypoint.new(1, theme.headline)
 	})
 
