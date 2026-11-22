@@ -15,7 +15,7 @@ local headerHeight = 26
 ----------------------------
 
 local defaults = {
-	accent = Color3.fromRGB(127, 110, 212),
+	accent = Color3.fromRGB(231, 202, 238),
 	window = Color3.fromRGB(20, 20, 21),
 	panel = Color3.fromRGB(16, 16, 17),
 	field = Color3.fromRGB(30, 30, 32),
@@ -37,51 +37,28 @@ library.presets = {
 	default = preset({}),
 	crimson = preset({accent = Color3.fromRGB(214, 60, 84)}),
 	sunset = preset({accent = Color3.fromRGB(240, 140, 64)}),
-	ocean = preset({
-		accent = Color3.fromRGB(64, 160, 224), window = Color3.fromRGB(16, 20, 26), panel = Color3.fromRGB(12, 16, 22),
-		field = Color3.fromRGB(24, 30, 38), control = Color3.fromRGB(38, 46, 58), text = Color3.fromRGB(198, 204, 212)
-	}),
-	mint = preset({
-		accent = Color3.fromRGB(84, 200, 150), window = Color3.fromRGB(18, 22, 20), panel = Color3.fromRGB(14, 18, 16),
-		field = Color3.fromRGB(26, 32, 29), control = Color3.fromRGB(40, 48, 44), text = Color3.fromRGB(198, 208, 202)
-	}),
 	mono = preset({
 		accent = Color3.fromRGB(225, 225, 225), window = Color3.fromRGB(18, 18, 18), panel = Color3.fromRGB(12, 12, 12),
 		field = Color3.fromRGB(28, 28, 28), control = Color3.fromRGB(44, 44, 44), text = Color3.fromRGB(210, 210, 210)
-	}),
-	gamesense = preset({
-		accent = Color3.fromRGB(150, 196, 24), window = Color3.fromRGB(17, 17, 17), panel = Color3.fromRGB(12, 12, 12),
-		field = Color3.fromRGB(26, 26, 26), control = Color3.fromRGB(40, 40, 40), text = Color3.fromRGB(205, 205, 205)
 	}),
 	onetap = preset({
 		accent = Color3.fromRGB(255, 160, 20), window = Color3.fromRGB(26, 26, 28), panel = Color3.fromRGB(20, 20, 22),
 		field = Color3.fromRGB(34, 34, 37), control = Color3.fromRGB(50, 50, 54), text = Color3.fromRGB(210, 210, 214)
 	}),
 	aimware = preset({
-		accent = Color3.fromRGB(214, 48, 56), window = Color3.fromRGB(24, 22, 22), panel = Color3.fromRGB(17, 16, 16),
-		field = Color3.fromRGB(34, 31, 31), control = Color3.fromRGB(50, 46, 46), text = Color3.fromRGB(210, 205, 205)
+		accent = Color3.fromRGB(150, 0, 0), window = Color3.fromRGB(255, 255, 255), panel = Color3.fromRGB(250, 250, 250),
+		field = Color3.fromRGB(255, 255, 255), control = Color3.fromRGB(225, 225, 225), text = Color3.fromRGB(20, 20, 20)
 	}),
 	fatality = preset({
 		accent = Color3.fromRGB(222, 36, 108), window = Color3.fromRGB(21, 14, 24), panel = Color3.fromRGB(15, 10, 18),
 		field = Color3.fromRGB(32, 23, 36), control = Color3.fromRGB(48, 36, 54), text = Color3.fromRGB(214, 200, 218)
-	}),
-	neverlose = preset({
-		accent = Color3.fromRGB(26, 160, 255), window = Color3.fromRGB(12, 14, 22), panel = Color3.fromRGB(8, 10, 17),
-		field = Color3.fromRGB(20, 24, 36), control = Color3.fromRGB(32, 38, 54), text = Color3.fromRGB(200, 208, 224)
-	}),
-	nixware = preset({
-		accent = Color3.fromRGB(70, 235, 190), window = Color3.fromRGB(16, 19, 22), panel = Color3.fromRGB(11, 14, 17),
-		field = Color3.fromRGB(25, 30, 35), control = Color3.fromRGB(38, 45, 52), text = Color3.fromRGB(200, 210, 214)
-	}),
-	rose = preset({
-		accent = Color3.fromRGB(240, 120, 170), window = Color3.fromRGB(24, 18, 21), panel = Color3.fromRGB(18, 13, 16),
-		field = Color3.fromRGB(35, 27, 31), control = Color3.fromRGB(52, 42, 47), text = Color3.fromRGB(214, 202, 207)
 	})
 }
 
 local function deriveTheme()
-	theme.border = theme.window:Lerp(white, 0.09)
-	theme.headline = theme.window:Lerp(white, 0.11)
+	theme.tone = theme.text.R > 0.5 and white or black
+	theme.border = theme.window:Lerp(theme.tone, 0.09)
+	theme.headline = theme.window:Lerp(theme.tone, 0.11)
 	theme.inline = theme.window:Lerp(theme.text, 0.3)
 	theme.sep = theme.window:Lerp(theme.text, 0.25)
 	theme.controlEdge = theme.control:Lerp(black, 0.25)
@@ -630,9 +607,9 @@ function Column:Section(title)
 	local row = Instance.new("Frame", self.holder)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
-	row.Size = UDim2.new(1, 0, 0, 18)
-	text(row, title, UDim2.new(1, 0, 0, 16), UDim2.new(0, 0, 0, 1), Enum.TextXAlignment.Center, boldFont)
-	frame(row, "accent", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -2))
+	row.Size = UDim2.new(1, 0, 0, 22)
+	text(row, title, UDim2.new(1, 0, 0, 16), nil, Enum.TextXAlignment.Center, boldFont)
+	frame(row, "accent", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -3))
 	return row
 end
 
@@ -1312,7 +1289,7 @@ function Column:Dropdown(opts)
 	local function paint(name)
 		local row, index = rows[name], position(name)
 		tween(row.item, "BackgroundColor3", index and theme.selected or (row.hover and theme.field or theme.window), 0.1)
-		tween(row.label, "TextColor3", index and theme.accent or (row.hover and white or theme.text))
+		tween(row.label, "TextColor3", index and theme.accent or (row.hover and theme.tone or theme.text))
 		row.bar.Visible = index ~= nil
 		row.index.Text = multi and index and tostring(index) or ""
 	end
@@ -1346,7 +1323,7 @@ function Column:Dropdown(opts)
 
 	local hit = hitbox(field, UDim2.new(1, 0, 1, 0))
 	hit.MouseEnter:Connect(function()
-		tween(valueText, "TextColor3", white)
+		tween(valueText, "TextColor3", theme.tone)
 		if not open then
 			tween(field.InLine, "Color", theme.inline)
 		end
@@ -1839,7 +1816,7 @@ function library:Window(title)
 
 		btn.MouseEnter:Connect(function()
 			if current.btn ~= btn then
-				tween(btn, "TextColor3", white)
+				tween(btn, "TextColor3", theme.tone)
 			end
 		end)
 		btn.MouseLeave:Connect(function()
