@@ -1,5 +1,5 @@
 local UIS, TweenService, HttpService = game:GetService("UserInputService"), game:GetService("TweenService"), game:GetService("HttpService")
-local library = {flags = {}, setters = {}, listeners = {}, controls = {}, key = Enum.KeyCode.RightShift}
+local library = {flags = {}, setters = {}, listeners = {}, controls = {}, binds = {}, key = Enum.KeyCode.RightShift}
 local Options = setmetatable({}, {__index = function(_, flag) return library.controls[flag] end})
 library.Options = Options
 library.Toggles = Options
@@ -12,7 +12,7 @@ local configDir = "distort_configs"
 local black, white = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
 local headerHeight = 26
 
--- theme ------------------------------------------------------------------
+----------------------------
 
 local defaults = {
 	accent = Color3.fromRGB(127, 110, 212),
@@ -48,6 +48,34 @@ library.presets = {
 	mono = preset({
 		accent = Color3.fromRGB(225, 225, 225), window = Color3.fromRGB(18, 18, 18), panel = Color3.fromRGB(12, 12, 12),
 		field = Color3.fromRGB(28, 28, 28), control = Color3.fromRGB(44, 44, 44), text = Color3.fromRGB(210, 210, 210)
+	}),
+	gamesense = preset({
+		accent = Color3.fromRGB(150, 196, 24), window = Color3.fromRGB(17, 17, 17), panel = Color3.fromRGB(12, 12, 12),
+		field = Color3.fromRGB(26, 26, 26), control = Color3.fromRGB(40, 40, 40), text = Color3.fromRGB(205, 205, 205)
+	}),
+	onetap = preset({
+		accent = Color3.fromRGB(255, 160, 20), window = Color3.fromRGB(26, 26, 28), panel = Color3.fromRGB(20, 20, 22),
+		field = Color3.fromRGB(34, 34, 37), control = Color3.fromRGB(50, 50, 54), text = Color3.fromRGB(210, 210, 214)
+	}),
+	aimware = preset({
+		accent = Color3.fromRGB(214, 48, 56), window = Color3.fromRGB(24, 22, 22), panel = Color3.fromRGB(17, 16, 16),
+		field = Color3.fromRGB(34, 31, 31), control = Color3.fromRGB(50, 46, 46), text = Color3.fromRGB(210, 205, 205)
+	}),
+	fatality = preset({
+		accent = Color3.fromRGB(222, 36, 108), window = Color3.fromRGB(21, 14, 24), panel = Color3.fromRGB(15, 10, 18),
+		field = Color3.fromRGB(32, 23, 36), control = Color3.fromRGB(48, 36, 54), text = Color3.fromRGB(214, 200, 218)
+	}),
+	neverlose = preset({
+		accent = Color3.fromRGB(26, 160, 255), window = Color3.fromRGB(12, 14, 22), panel = Color3.fromRGB(8, 10, 17),
+		field = Color3.fromRGB(20, 24, 36), control = Color3.fromRGB(32, 38, 54), text = Color3.fromRGB(200, 208, 224)
+	}),
+	nixware = preset({
+		accent = Color3.fromRGB(70, 235, 190), window = Color3.fromRGB(16, 19, 22), panel = Color3.fromRGB(11, 14, 17),
+		field = Color3.fromRGB(25, 30, 35), control = Color3.fromRGB(38, 45, 52), text = Color3.fromRGB(200, 210, 214)
+	}),
+	rose = preset({
+		accent = Color3.fromRGB(240, 120, 170), window = Color3.fromRGB(24, 18, 21), panel = Color3.fromRGB(18, 13, 16),
+		field = Color3.fromRGB(35, 27, 31), control = Color3.fromRGB(52, 42, 47), text = Color3.fromRGB(214, 202, 207)
 	})
 }
 
@@ -58,14 +86,15 @@ local function deriveTheme()
 	theme.sep = theme.window:Lerp(theme.text, 0.25)
 	theme.controlEdge = theme.control:Lerp(black, 0.25)
 	theme.accentEdge = theme.accent:Lerp(black, 0.3)
+	theme.accentDeep = theme.accent:Lerp(black, 0.55)
+	theme.accentLight = theme.accent:Lerp(white, 0.35)
+	theme.accentPale = theme.accent:Lerp(white, 0.8)
 	theme.selected = theme.window:Lerp(theme.accent, 0.12)
 	theme.textOff = theme.text:Lerp(theme.window, 0.2)
 	theme.dim = theme.text:Lerp(theme.window, 0.4)
 end
 deriveTheme()
 
--- registry: objects created with a theme key (string) are recolored live;
--- state-driven controls (toggle, dropdown rows, tabs...) repaint through refreshers
 local registry, refreshers = {}, {}
 
 local function themed(obj, prop, value)
@@ -96,7 +125,7 @@ function library:SetTheme(key, value)
 	applyTheme()
 end
 
--- fonts ------------------------------------------------------------------
+----------------------------
 
 local fallback = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
 
@@ -119,7 +148,7 @@ local uiFont = loadFont("tahomaxp", fontUiUrl)
 local boldFont = loadFont("tahomaboldxp", fontBoldUrl)
 local logoFont = loadFont("gothambold", fontLogoUrl)
 
--- helpers ----------------------------------------------------------------
+----------------------------
 
 local function guiParent()
 	return (gethui and gethui()) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
@@ -252,7 +281,12 @@ local function inside(obj, p)
 	return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
 end
 
--- popups (color picker / keybind mode) -------------------------------------
+local bindNames = {MouseButton1 = "m1", MouseButton2 = "m2", MouseButton3 = "m3"}
+local function bindLabel(name)
+	return bindNames[name] or string.lower(name)
+end
+
+----------------------------
 
 local openFrame, openAnchor
 
@@ -293,7 +327,7 @@ UIS.InputBegan:Connect(function(i)
 	end
 end)
 
--- configs ----------------------------------------------------------------
+----------------------------
 
 local function ensureDir()
 	if not isfolder(configDir) then
@@ -373,9 +407,9 @@ function library.autoload()
 	return name and library.loadConfig(name)
 end
 
--- hud --------------------------------------------------------------------
+----------------------------
 
-local hudGui, hudArea, watermark, watermarkLabel, indicator, indicatorMain, indicatorSub, indicatorShown
+local hudGui, hudArea, watermark, watermarkLabel, indicator, indicatorMain, indicatorSub, indicatorShown, bindList
 
 local function hud()
 	if hudGui and hudGui.Parent then
@@ -397,11 +431,14 @@ local function hud()
 	hudArea.Name = "Notifications"
 	hudArea.BackgroundTransparency = 1
 	hudArea.BorderSizePixel = 0
-	hudArea.Position = UDim2.fromOffset(8, 8)
+	hudArea.AnchorPoint = Vector2.new(0.5, 1)
+	hudArea.Position = UDim2.new(0.5, 0, 1, -16)
 	hudArea.Size = UDim2.fromOffset(400, 300)
 	local areaList = Instance.new("UIListLayout", hudArea)
 	areaList.Padding = UDim.new(0, 6)
 	areaList.SortOrder = Enum.SortOrder.LayoutOrder
+	areaList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	areaList.VerticalAlignment = Enum.VerticalAlignment.Bottom
 
 	watermark = box(hudGui, "window", UDim2.fromOffset(100, 22), UDim2.new(0.5, 0, 0, 8), "border")
 	watermark.Name = "Watermark"
@@ -469,7 +506,7 @@ end
 
 function library:Notify(str, duration)
 	hud()
-	local width, height = measure(str, uiFont, 12) + 16, 22
+	local width, height = measure(str, uiFont, 12) + 28, 22
 
 	local note = box(hudArea, "window", UDim2.fromOffset(0, height), nil, "border")
 	note.ClipsDescendants = true
@@ -477,7 +514,7 @@ function library:Notify(str, duration)
 	shade(note, Color3.fromRGB(190, 190, 195))
 	frame(note, "accent", UDim2.new(0, 3, 1, 0)).ZIndex = 12
 
-	local label = text(note, str, UDim2.new(1, -10, 1, 0), UDim2.new(0, 9, 0, 0))
+	local label = text(note, str, UDim2.fromOffset(width - 3, height), UDim2.new(0, 3, 0, 0), Enum.TextXAlignment.Center)
 	label.ZIndex = 11
 	textStroke(label)
 
@@ -493,6 +530,74 @@ function library:Notify(str, duration)
 	end)
 end
 
+----------------------------
+
+local function bindRow(entry)
+	local row = Instance.new("Frame", bindList)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, 16)
+	row.Visible = false
+	text(row, entry.name, UDim2.new(1, -50, 1, 0), UDim2.new(0, 8, 0, 0))
+	entry.key = text(row, "", UDim2.new(0, 44, 1, 0), UDim2.new(1, -52, 0, 0), Enum.TextXAlignment.Right, nil, "dim")
+	entry.row = row
+end
+
+function library.updateBinds()
+	if not bindList then return end
+	for _, entry in ipairs(library.binds) do
+		local bind = entry.bind
+		entry.row.Visible = bind.Value ~= nil and bind.Mode ~= "Always" and entry.active()
+		entry.key.Text = bind.Value and "[" .. bindLabel(bind.Value) .. "]" or ""
+	end
+end
+
+function library.addBind(name, bind, active)
+	local entry = {name = name, bind = bind, active = active}
+	table.insert(library.binds, entry)
+	if bindList then
+		bindRow(entry)
+		library.updateBinds()
+	end
+end
+
+function library:SetKeybindList(on)
+	hud()
+	if not bindList and on then
+		bindList = box(hudGui, "window", UDim2.new(0, 150, 0, 0), UDim2.new(0, 10, 0.4, 0), "border")
+		bindList.AutomaticSize = Enum.AutomaticSize.Y
+		shade(bindList, Color3.fromRGB(190, 190, 195))
+		Instance.new("UIListLayout", bindList).SortOrder = Enum.SortOrder.LayoutOrder
+		local pad = Instance.new("UIPadding", bindList)
+		pad.PaddingBottom = UDim.new(0, 4)
+
+		local head = Instance.new("Frame", bindList)
+		head.BackgroundTransparency = 1
+		head.BorderSizePixel = 0
+		head.Size = UDim2.new(1, 0, 0, 22)
+		frame(head, "accent", UDim2.new(1, 0, 0, 2))
+		text(head, "keybinds", UDim2.new(1, 0, 1, -2), UDim2.new(0, 0, 0, 2), Enum.TextXAlignment.Center, boldFont)
+
+		local grab
+		drag(head, function(p)
+			grab = grab or p - bindList.AbsolutePosition
+			bindList.Position = UDim2.fromOffset(p.X - grab.X, p.Y - grab.Y)
+		end, function(active)
+			if not active then
+				grab = nil
+			end
+		end)
+
+		for _, entry in ipairs(library.binds) do
+			bindRow(entry)
+		end
+		library.updateBinds()
+	end
+	if bindList then
+		bindList.Visible = on and true or false
+	end
+end
+
 function library:Unload()
 	if library.gui then
 		library.gui:Destroy()
@@ -502,7 +607,7 @@ function library:Unload()
 	end
 end
 
--- columns ----------------------------------------------------------------
+----------------------------
 
 local Column = {}
 Column.__index = Column
@@ -526,8 +631,8 @@ function Column:Section(title)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
 	row.Size = UDim2.new(1, 0, 0, 18)
-	text(row, title, UDim2.new(1, 0, 0, 16), UDim2.new(0, 1, 0, 1), nil, boldFont)
-	frame(row, "border", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -2))
+	text(row, title, UDim2.new(1, 0, 0, 16), UDim2.new(0, 0, 0, 1), Enum.TextXAlignment.Center, boldFont)
+	frame(row, "accent", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 1, -2))
 	return row
 end
 
@@ -603,10 +708,13 @@ function Column:Pages(names)
 	return table.unpack(result)
 end
 
-local function buildPicker(row, opts, offset)
-	local flag = opts.flag or opts.text or tostring(row)
+----------------------------
 
-	local swatch = box(row, white, UDim2.new(0, 22, 0, 10), UDim2.new(1, -(offset + 22), 0.5, -5), Color3.fromRGB(30, 30, 30))
+local function buildPicker(parent, opts, order)
+	local flag = opts.flag
+
+	local swatch = box(parent, white, UDim2.new(0, 22, 0, 10), nil, Color3.fromRGB(30, 30, 30))
+	swatch.LayoutOrder = order
 	local hit = hitbox(swatch, UDim2.new(1, 0, 1, 0))
 	hit.ZIndex = 3
 
@@ -689,10 +797,39 @@ local function buildPicker(row, opts, offset)
 	return obj
 end
 
-local bindNames = {MouseButton1 = "m1", MouseButton2 = "m2", MouseButton3 = "m3"}
-local function bindLabel(name)
-	return bindNames[name] or string.lower(name)
+local function newSlot(row)
+	local slot = {order = 0, colors = 0}
+	slot.bar = Instance.new("Frame", row)
+	slot.bar.BackgroundTransparency = 1
+	slot.bar.BorderSizePixel = 0
+	slot.bar.AnchorPoint = Vector2.new(1, 0.5)
+	slot.bar.Position = UDim2.new(1, -1, 0.5, 0)
+	slot.bar.AutomaticSize = Enum.AutomaticSize.X
+	slot.bar.Size = UDim2.new(0, 0, 1, 0)
+	local layout = Instance.new("UIListLayout", slot.bar)
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 6)
+
+	function slot:Next()
+		self.order = self.order - 1
+		return self.order
+	end
+
+	return slot
 end
+
+local function addColor(slot, opts, flag)
+	if slot.colors >= 3 then return end
+	slot.colors = slot.colors + 1
+	opts = opts or {}
+	opts.flag = opts.flag or (flag .. "_color" .. slot.colors)
+	return buildPicker(slot.bar, opts, slot:Next())
+end
+
+----------------------------
 
 function Column:Toggle(opts)
 	local flag = opts.flag or opts.text
@@ -701,14 +838,9 @@ function Column:Toggle(opts)
 	local square = box(row, theme.control, UDim2.new(0, 10, 0, 10), UDim2.new(0, 1, 0.5, -5), theme.controlEdge)
 	shade(square, Color3.fromRGB(190, 190, 195))
 	local label = text(row, opts.text, UDim2.new(1, -17, 1, 0), UDim2.new(0, 17, 0, 0), nil, boldFont, theme.textOff)
+	local slot = newSlot(row)
 
-	local obj = {Value = false, right = 1}
-
-	local function reserve(width)
-		local x = obj.right
-		obj.right = obj.right + width + 6
-		return x
-	end
+	local obj = {Value = false}
 
 	local function paint()
 		tween(square, "BackgroundColor3", obj.Value and theme.accent or theme.control)
@@ -733,6 +865,7 @@ function Column:Toggle(opts)
 		library.flags[flag] = obj.Value
 		paint()
 		fire(flag, obj.Value)
+		library.updateBinds()
 		if not silent and opts.callback then
 			task.spawn(opts.callback, obj.Value)
 		end
@@ -743,25 +876,22 @@ function Column:Toggle(opts)
 	end
 
 	function obj:AddColor(copts)
-		copts = copts or {}
-		copts.flag = copts.flag or (flag .. "_color" .. tostring(obj.right))
-		return buildPicker(row, copts, reserve(22))
+		return addColor(slot, copts, flag)
 	end
 
 	function obj:AddKeybind(kopts)
 		kopts = kopts or {}
 		local kflag = kopts.flag or (flag .. "_bind")
-		local x = reserve(40)
 
-		local btn = Instance.new("TextButton", row)
+		local btn = Instance.new("TextButton", slot.bar)
 		btn.AutoButtonColor = false
 		btn.BackgroundTransparency = 1
 		btn.BorderSizePixel = 0
-		btn.Size = UDim2.new(0, 40, 1, 0)
-		btn.Position = UDim2.new(1, -(x + 40), 0, 0)
+		btn.AutomaticSize = Enum.AutomaticSize.X
+		btn.Size = UDim2.new(0, 0, 1, 0)
+		btn.LayoutOrder = slot:Next()
 		btn.FontFace = uiFont
 		btn.TextSize = 12
-		btn.TextXAlignment = Enum.TextXAlignment.Right
 
 		local bind = {Value = typeof(kopts.value) == "EnumItem" and kopts.value.Name or kopts.value, Held = false, State = false, Mode = kopts.mode or "Hold"}
 		local listening = false
@@ -794,12 +924,12 @@ function Column:Toggle(opts)
 		end
 
 		local function render()
-			local key = bind.Value and bindLabel(bind.Value) or "none"
-			btn.Text = listening and "..." or (bind.Mode == "Always" and "always" or (bind.Mode == "Toggle" and key .. " t" or key))
+			btn.Text = listening and "..." or (bind.Mode == "Always" and "always" or (bind.Value and bindLabel(bind.Value) or "none"))
 			btn.TextColor3 = listening and theme.accent or theme.text
 			for name, item in pairs(items) do
 				item.TextColor3 = name == bind.Mode and theme.accent or theme.text
 			end
+			library.updateBinds()
 		end
 		table.insert(refreshers, render)
 
@@ -862,12 +992,14 @@ function Column:Toggle(opts)
 				if kopts.toggle then
 					obj:Set(not obj.Value)
 				end
+				library.updateBinds()
 			end
 		end)
 
 		UIS.InputEnded:Connect(function(i)
 			if matches(i) then
 				bind.Held = false
+				library.updateBinds()
 			end
 		end)
 
@@ -885,6 +1017,12 @@ function Column:Toggle(opts)
 		library.controls[kflag] = bind
 		library.flags[kflag] = bind.Value
 		library.flags[kflag .. "_mode"] = bind.Mode
+		library.addBind(opts.text, bind, function()
+			if kopts.toggle then
+				return obj.Value
+			end
+			return bind:IsActive()
+		end)
 		render()
 		return bind
 	end
@@ -899,7 +1037,6 @@ function Column:Toggle(opts)
 	return obj
 end
 
--- standalone keybind (no toggle attached), e.g. the menu key
 function Column:Keybind(opts)
 	local flag = opts.flag or opts.text
 	local row = Instance.new("Frame", self.holder)
@@ -912,11 +1049,12 @@ function Column:Keybind(opts)
 	btn.AutoButtonColor = false
 	btn.BackgroundTransparency = 1
 	btn.BorderSizePixel = 0
-	btn.Size = UDim2.new(0, 56, 1, 0)
-	btn.Position = UDim2.new(1, -56, 0, 0)
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.AutomaticSize = Enum.AutomaticSize.X
+	btn.Size = UDim2.new(0, 0, 1, 0)
+	btn.Position = UDim2.new(1, -1, 0, 0)
 	btn.FontFace = uiFont
 	btn.TextSize = 12
-	btn.TextXAlignment = Enum.TextXAlignment.Right
 
 	local obj = {Value = typeof(opts.value) == "EnumItem" and opts.value.Name or opts.value}
 	local listening = false
@@ -988,7 +1126,6 @@ function Column:Button(opts)
 	return makeButton(self.holder, opts, UDim2.new(1, -2, 0, 22))
 end
 
--- several buttons side by side; returns the TextButtons
 function Column:Buttons(defs)
 	local row = Instance.new("Frame", self.holder)
 	row.BackgroundTransparency = 1
@@ -1110,8 +1247,8 @@ function Column:Slider(opts)
 	return obj
 end
 
--- inline dropdown: the list expands under the field and pushes the controls
--- below it down, so it always goes down and can never be cut off or overlap
+----------------------------
+
 function Column:Dropdown(opts)
 	local flag = opts.flag or opts.text
 	local multi = opts.multi
@@ -1324,13 +1461,19 @@ function Column:Dropdown(opts)
 end
 
 function Column:Colorpicker(opts)
+	opts.flag = opts.flag or opts.text
 	local row = Instance.new("Frame", self.holder)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
 	row.Size = UDim2.new(1, 0, 0, 16)
 
-	text(row, opts.text, UDim2.new(1, -30, 1, 0), UDim2.new(0, 1, 0, 0), nil, boldFont)
-	return buildPicker(row, opts, 1)
+	text(row, opts.text, UDim2.new(1, -96, 1, 0), UDim2.new(0, 1, 0, 0), nil, boldFont)
+	local slot = newSlot(row)
+	local first = addColor(slot, opts, opts.flag)
+	function first:AddColor(copts)
+		return addColor(slot, copts, opts.flag)
+	end
+	return first
 end
 
 function Column:Preview(opts)
@@ -1388,7 +1531,7 @@ function Column:Preview(opts)
 	return holder
 end
 
--- settings blocks --------------------------------------------------------
+----------------------------
 
 function Column:Configs()
 	self:Section("configs")
@@ -1497,7 +1640,12 @@ end
 
 function Column:Theme()
 	self:Section("theme")
-	self:Dropdown({flag = "_preset", text = "preset", items = {"default", "crimson", "sunset", "ocean", "mint", "mono"}, callback = function(name)
+	local names = {}
+	for name in pairs(library.presets) do
+		table.insert(names, name)
+	end
+	table.sort(names)
+	self:Dropdown({flag = "_preset", text = "preset", items = names, value = "default", callback = function(name)
 		for key, color in pairs(library.presets[name]) do
 			Options["ui_" .. key]:Set(color)
 		end
@@ -1517,12 +1665,15 @@ function Column:Menu()
 	self:Toggle({text = "watermark", flag = "ui_watermark", value = true, callback = function(on)
 		library:SetWatermarkVisibility(on)
 	end})
+	self:Toggle({text = "keybind list", flag = "ui_binds", value = false, callback = function(on)
+		library:SetKeybindList(on)
+	end})
 	self:Button({text = "unload", callback = function()
 		library:Unload()
 	end})
 end
 
--- window -----------------------------------------------------------------
+----------------------------
 
 function library:Window(title)
 	local parent = guiParent()
@@ -1551,7 +1702,6 @@ function library:Window(title)
 		NumberSequenceKeypoint.new(1, 0.8)
 	})
 
-	-- inset by 1px on each side so the scanlines never cut the main InLine
 	local bar = frame(main, "window", UDim2.new(1, -2, 0, 42), UDim2.new(0, 1, 0, 4))
 	bar.BackgroundTransparency = 1
 	local logoText = string.upper(title or "distort")
@@ -1561,14 +1711,19 @@ function library:Window(title)
 		l.TextTransparency = transparency
 		return l
 	end
-	logoLayer(Color3.fromRGB(255, 60, 120), 2, 1, 0.5)
+	logoLayer("accentLight", 2, 1, 0.5)
 	logoLayer("accent", -2, -1, 0.5)
-	Instance.new("UIGradient", logoLayer(white, 0, 0, 0)).Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 40, 60)),
-		ColorSequenceKeypoint.new(0.45, Color3.fromRGB(235, 110, 150)),
-		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(240, 230, 238)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 105, 120))
-	})
+	local logoGradient = Instance.new("UIGradient", logoLayer(white, 0, 0, 0))
+	local function paintLogo()
+		logoGradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, theme.accentDeep),
+			ColorSequenceKeypoint.new(0.45, theme.accentLight),
+			ColorSequenceKeypoint.new(0.75, theme.accentPale),
+			ColorSequenceKeypoint.new(1, theme.accentDeep)
+		})
+	end
+	paintLogo()
+	table.insert(refreshers, paintLogo)
 	for _, y in ipairs({9, 16, 23, 30}) do
 		local scan = frame(bar, "window", UDim2.new(1, 0, 0, 1), UDim2.new(0, 0, 0, y))
 		scan.BackgroundTransparency = 0.35
@@ -1699,7 +1854,6 @@ function library:Window(title)
 		return tab
 	end
 
-	-- ready-made config tab: configs on the left, theme + menu on the right
 	function window:Settings(name)
 		local tab = window:Tab(name or "config")
 		tab.Left:Configs()
