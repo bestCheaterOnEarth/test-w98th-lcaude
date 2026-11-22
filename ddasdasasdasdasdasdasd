@@ -126,7 +126,7 @@ local function guiParent()
 end
 
 local function tween(obj, prop, value, t)
-	TweenService:Create(obj, TweenInfo.new(t or 0.15), {[prop] = value}):Play()
+	TweenService:Create(obj, TweenInfo.new(t or 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {[prop] = value}):Play()
 end
 
 local function fire(flag, value)
@@ -276,11 +276,13 @@ local function openPopup(pop, anchor)
 	closePopup()
 	if show then
 		local main = library.main
-		pop.Position = UDim2.fromOffset(
+		local target = UDim2.fromOffset(
 			math.min(anchor.AbsolutePosition.X - main.AbsolutePosition.X, main.AbsoluteSize.X - pop.Size.X.Offset - 6),
 			math.min(anchor.AbsolutePosition.Y - main.AbsolutePosition.Y + anchor.AbsoluteSize.Y + 3, main.AbsoluteSize.Y - pop.Size.Y.Offset - 6)
 		)
+		pop.Position = target - UDim2.fromOffset(0, 6)
 		pop.Visible = true
+		tween(pop, "Position", target, 0.12)
 		openFrame, openAnchor = pop, anchor
 	end
 end
@@ -1138,18 +1140,13 @@ function Column:Dropdown(opts)
 		pixels[i] = frame(arrow, theme.dim, UDim2.fromOffset(9 - i * 2, 1), UDim2.fromOffset(i - 1, i - 1))
 	end
 
-	local listBox = box(holder, "window", UDim2.new(1, -2, 0, 0), UDim2.new(0, 1, 0, fieldY + 26), "inline")
+	local listBox = box(holder, "window", UDim2.new(1, -2, 0, 0), UDim2.new(0, 1, 0, fieldY + 26), "border")
 	listBox.Visible = false
 	listBox.ClipsDescendants = true
-	local list = Instance.new("ScrollingFrame", listBox)
+	local list = Instance.new("Frame", listBox)
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Active = true
 	list.Size = UDim2.new(1, 0, 1, 0)
-	list.ScrollBarThickness = 3
-	list.CanvasSize = UDim2.new()
-	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	themed(list, "ScrollBarImageColor3", "accent")
 	Instance.new("UIListLayout", list).SortOrder = Enum.SortOrder.LayoutOrder
 	local listPad = Instance.new("UIPadding", list)
 	listPad.PaddingTop = UDim.new(0, 2)
@@ -1193,13 +1190,12 @@ function Column:Dropdown(opts)
 	local function setOpen(on)
 		if on and count == 0 then return end
 		open = on
-		local height = math.min(count, 6) * 20 + 4
-		list.ScrollingEnabled = count > 6
+		local height = count * 20 + 4
 		listBox.Visible = true
-		tween(listBox, "Size", UDim2.new(1, -2, 0, on and height or 0), 0.12)
-		tween(holder, "Size", UDim2.new(1, 0, 0, on and fieldY + 28 + height or base), 0.12)
+		tween(listBox, "Size", UDim2.new(1, -2, 0, on and height or 0), 0.2)
+		tween(holder, "Size", UDim2.new(1, 0, 0, on and fieldY + 32 + height or base), 0.2)
 		paintField()
-		task.delay(0.14, function()
+		task.delay(0.22, function()
 			if open ~= on then return end
 			listBox.Visible = on
 			if on then
@@ -1540,9 +1536,13 @@ function library:Window(title)
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	library.gui = gui
 
-	local main = box(gui, "window", UDim2.new(0, 560, 0, 440), UDim2.new(0.5, -280, 0.5, -220), "inline")
+	local main = box(gui, "window", UDim2.new(0, 560, 0, 440), UDim2.new(0.5, 0, 0.5, 0), "inline")
 	main.Name = "Main"
+	main.AnchorPoint = Vector2.new(0.5, 0.5)
 	library.main = main
+	local scale, shown = Instance.new("UIScale", main), true
+	scale.Scale = 0.92
+	tween(scale, "Scale", 1, 0.25)
 
 	local topLine = frame(main, "sep", UDim2.new(1, -2, 0, 1), UDim2.new(0, 1, 0, 1))
 	Instance.new("UIGradient", topLine).Transparency = NumberSequence.new({
@@ -1676,7 +1676,9 @@ function library:Window(title)
 				current.page.Visible = false
 			end
 			tween(btn, "TextColor3", theme.accent)
+			page.Position = UDim2.fromOffset(0, 10)
 			page.Visible = true
+			tween(page, "Position", UDim2.new(), 0.22)
 			current = {btn = btn, page = page}
 		end
 
@@ -1727,7 +1729,19 @@ function library:Window(title)
 	UIS.InputBegan:Connect(function(i, processed)
 		if not processed and i.KeyCode == library.key then
 			closePopup()
-			main.Visible = not main.Visible
+			shown = not shown
+			if shown then
+				scale.Scale = 0.94
+				main.Visible = true
+				tween(scale, "Scale", 1, 0.18)
+			else
+				tween(scale, "Scale", 0.94, 0.12)
+				task.delay(0.12, function()
+					if not shown then
+						main.Visible = false
+					end
+				end)
+			end
 		end
 	end)
 
